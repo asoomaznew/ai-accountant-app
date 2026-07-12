@@ -27,5 +27,6 @@
     },
     "allowImportingTsExtensions": true,
     "noEmit": true
-  }
+  },
+  "exclude": ["archive", "dist", "node_modules", "**/archive/**"]
 }

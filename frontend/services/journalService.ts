@@ -23,6 +23,44 @@ function normalizeAcc(acc: string | undefined): string {
     return acc.replace(/^0+/, '').trim();
 }
 
+/**
+ * Try to infer the bank account number from transaction descriptions or the
+ * overall account name (for cases where Gemini returned "N/A").
+ *
+ * Looks for clinic name keywords (e.g. "Aram", "Joya", "Iris", "Med Marine") and
+ * matches against CLOVER_BANK_INFO.accountName. Returns the FIRST matching
+ * accountNo, or null if no match.
+ */
+function inferAccountFromDescription(descText: string, accountName?: string): string | null {
+    const haystack = `${accountName || ""} ${descText || ""}`.toLowerCase();
+    if (!haystack.trim()) return null;
+
+    // Define an ordered list of clinic name keywords (longest first to avoid
+    // false matches like "Med" before "Med Marine").
+    const CLINIC_KEYWORDS: Array<{ keywords: string[]; preferredAccountNo: string }> = [
+        { keywords: ["med marine"],  preferredAccountNo: "KIBMM-2207" },
+        { keywords: ["med gray"],    preferredAccountNo: "KIBMG-2320" },
+        { keywords: ["medical harbour"], preferredAccountNo: "KIBMH-2231" },
+        { keywords: ["al aseel"],   preferredAccountNo: "KIBAA-2380" },
+        { keywords: ["aram"],       preferredAccountNo: "KIBAM-2290" },  // primary (per constants.ts)
+        { keywords: ["fourth medical"], preferredAccountNo: "KIBFR-8602" },
+        { keywords: ["joya"],       preferredAccountNo: "KIBJY-2258" },
+        { keywords: ["iris"],       preferredAccountNo: "KIBIR-2282" },
+        { keywords: ["yarrow"],     preferredAccountNo: "KIBYR-4765" },
+        { keywords: ["tri care"],   preferredAccountNo: "KIBTR-5252" },
+        { keywords: ["mewl"],       preferredAccountNo: "KIBML-6601" },
+    ];
+
+    for (const { keywords, preferredAccountNo } of CLINIC_KEYWORDS) {
+        for (const kw of keywords) {
+            if (haystack.includes(kw)) {
+                return preferredAccountNo;
+            }
+        }
+    }
+    return null;
+}
+
 export function generateJournalEntries(
     data: ExtractedData, 
     forcedOffsetAccount?: string, 
@@ -32,10 +70,10 @@ export function generateJournalEntries(
 ): JournalEntry[] {
     let { accountName, accountNumber, transactions } = data;
 
-    // ── Fallback: infer accountNumber from filename when AI returned empty ──
+    // ── Fallback: infer accountNumber from filename when AI returned empty/N/A ──
     // Pattern: "Aseel-2380-01-Jun-30-Jun.pdf" → last4 = "2380"
     // We then find the matching full account key in ACCOUNT_NO_TO_OFFSET_MAPPING.
-    if ((!accountNumber || !accountNumber.trim()) && fileName) {
+    if ((!accountNumber || !accountNumber.trim() || accountNumber.toUpperCase() === "N/A") && fileName) {
         const last4Match = fileName.match(/[- ](\d{4})[-. ]/);
         if (last4Match) {
             const last4 = last4Match[1];
@@ -45,6 +83,19 @@ export function generateJournalEntries(
                 accountNumber = inferredKey;
                 console.info(`[journalService] Inferred accountNumber "${accountNumber}" from filename "${fileName}"`);
             }
+        }
+    }
+
+    // ── Fallback 2: infer accountNumber from MERCHANT NAME in transactions ──
+    // For POS flows, the merchant name (e.g. "Aram Medical Polyclinic") is the most reliable
+    // signal since bank statements often have accountNumber="N/A".
+    if ((!accountNumber || !accountNumber.trim() || accountNumber.toUpperCase() === "N/A") && transactions && transactions.length > 0) {
+        // Try to extract a clinic name from the first few transactions' descriptions
+        const descText = transactions.slice(0, 3).map(t => t.description || "").join(" ");
+        const inferred = inferAccountFromDescription(descText, accountName);
+        if (inferred) {
+            accountNumber = inferred;
+            console.info(`[journalService] Inferred accountNumber "${accountNumber}" from transaction descriptions`);
         }
     }
 
