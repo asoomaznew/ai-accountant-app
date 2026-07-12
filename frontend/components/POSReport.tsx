@@ -119,7 +119,32 @@ const POSReport: React.FC = () => {
                 }
             }
 
-            allItems.sort((a, b) => a.clinicName.localeCompare(b.clinicName) || new Date(a.transactionDate).getTime() - new Date(b.transactionDate).getTime());
+            // FIX: parseDD-MM-YYYY dates correctly (new Date() of "13-05-2026" returns NaN).
+            // Use the same DD-MM-YYYY reverse-join trick as MerchantEntryAutomation L291.
+            const parseTxnDate = (s: string): number => {
+                if (!s) return NaN;
+                // Try ISO first (YYYY-MM-DD)
+                if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
+                    const t = new Date(s).getTime();
+                    if (!isNaN(t)) return t;
+                }
+                // Try DD-MM-YYYY
+                const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(s);
+                if (m) {
+                    const [, dd, mm, yyyy] = m;
+                    return new Date(Number(yyyy), Number(mm) - 1, Number(dd)).getTime();
+                }
+                // Fallback: native Date parser
+                const t = new Date(s).getTime();
+                return isNaN(t) ? 0 : t;
+            };
+            allItems.sort((a, b) => {
+                const clinicCmp = a.clinicName.localeCompare(b.clinicName);
+                if (clinicCmp !== 0) return clinicCmp;
+                const ta = parseTxnDate(a.transactionDate);
+                const tb = parseTxnDate(b.transactionDate);
+                return ta - tb;
+            });
             
             setReportData(allItems);
             if (minDate !== Infinity) {
