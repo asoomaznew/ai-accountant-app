@@ -88,6 +88,7 @@ export interface JournalEntry {
   departments: string;
   projectId: string;
   propertyId: string;
+  unitId?: string;
 }
 
 export interface RawAccountingRow {

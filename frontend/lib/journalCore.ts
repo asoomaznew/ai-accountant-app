@@ -641,6 +641,7 @@ export function convertToXLSX(data: JournalEntry[]): ArrayBuffer {
         entry.departments,
         entry.projectId,
         entry.propertyId,
+        entry.unitId || ""
     ]);
 
     const worksheetData = [header, ...rows];

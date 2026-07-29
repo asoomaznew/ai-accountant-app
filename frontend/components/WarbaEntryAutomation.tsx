@@ -345,8 +345,8 @@ const WarbaEntryAutomation: React.FC = () => {
             link.href = URL.createObjectURL(blob);
             
             const downloadFileName = filesToProcess.length === 1
-                ? filesToProcess[0].replace(/\.(pdf|csv)$/i, '.xlsx')
-                : "Consolidated_Journal_Entries.xlsx";
+                ? "Google " + filesToProcess[0].replace(/\.(pdf|csv|xlsx)$/i, '.xlsx')
+                : "Google Consolidated_Journal_Entries.xlsx";
             link.download = downloadFileName;
 
             document.body.appendChild(link);

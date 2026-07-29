@@ -70,10 +70,17 @@ def generate_merchant_journal_entries(
     filtered_transactions = []
     for t in corrected_transactions:
         desc_lower = str(t.get("description", "")).lower()
-        if t.get("type") == "debit" and "fees" in desc_lower:
+        amount_val = 0.0
+        try:
+            amount_val = float(str(t.get("amount", "0")).replace(',', ''))
+        except:
+            pass
+        if t.get("type") == "debit" and "fees" in desc_lower and amount_val <= 9:
             continue
-        if "transfer deposit knet" in desc_lower or "merchant rcon pay" in desc_lower or "transfer withdrawal rental fee" in desc_lower:
-            continue
+        # In KIB statements, KNET deposits and merchant payments represent the core transactions.
+        # Keeping this filter was dropping all credit entries.
+        # if "transfer deposit knet" in desc_lower or "merchant rcon pay" in desc_lower or "transfer withdrawal rental fee" in desc_lower:
+        #     continue
         filtered_transactions.append(t)
 
     if not filtered_transactions:

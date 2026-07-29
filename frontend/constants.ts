@@ -63,9 +63,9 @@ export const VENDOR_OFFSET_ACCOUNTS: VendorOffsetAccounts = {
     "FOURTH MEDICAL CENTER": "50-000009",
     "JOYA POLYCLINIC": "50-000002",
     "MEDICAL HARBOUR CENTER": "50-000008",
-    "MED MARINE POLYCLINIC": "50-000006",
-    "Med Marine Medical Polyclinic": "50-000006",
-    "MED GRAY POLYCLINIC": "50-000003",
+    "MED MARINE POLYCLINIC": "50-000001",
+    "Med Marine Medical Polyclinic": "50-000001",
+    "MED GRAY POLYCLINIC": "50-000001",
     "ARAM MEDICAL POLYCLINIC": "50-000007",
     "TRI CARE CLINIC": "50-000012",
 };
@@ -236,7 +236,7 @@ export const OUTPUT_HEADER = [
   "Exchange Rate", "Offset Account Type", "Offset Account", "Invoice No", "Document No", 
   "Document Date", "Due Date", "Asset Trans Type", "Posting Profile", "Payment Mode", 
   "Payment Reference", "Number of Voucher", "Activities", "Country", "Departments", 
-  "Project_ID", "Property_ID"
+  "Project_ID", "Property_ID", "Unit_ID"
 ];
 
 export const BATCH_MAPPING: Record<string, { description: string, bankAccount: string, last4: string }> = {

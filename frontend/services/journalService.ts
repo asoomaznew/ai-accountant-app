@@ -405,7 +405,8 @@ export function convertToXLSX(data: JournalEntry[]): ArrayBuffer {
         entry.country,
         entry.departments,
         entry.projectId,
-        entry.propertyId
+        entry.propertyId,
+        entry.unitId || ""
     ]);
 
     const worksheetData = [header, ...rows];
@@ -444,7 +445,8 @@ export function convertToPOS49XLSX(data: JournalEntry[]): ArrayBuffer {
         entry.country,
         entry.departments,
         entry.projectId,
-        entry.propertyId
+        entry.propertyId,
+        entry.unitId || ""
     ]);
 
     const worksheetData = [header, ...rows];

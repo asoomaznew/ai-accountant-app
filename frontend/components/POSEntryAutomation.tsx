@@ -22,7 +22,7 @@ const Header: React.FC = () => (
             <ProcessIcon className="w-8 h-8 text-sky-400 mr-3" aria-hidden="true" />
             <h1 className="text-2xl font-bold text-slate-200">(POS entries 50 & 49)</h1>
         </div>
-         <p className="text-sm text-slate-400 mt-2 sm:mt-0 ml-11">Prepared by Haitham Soliman Abdou</p>
+        <p className="text-sm text-slate-400 mt-2 sm:mt-0 ml-11">Prepared by Haitham Soliman Abdou</p>
     </div>
 );
 
@@ -85,7 +85,7 @@ const POSEntryAutomation: React.FC = () => {
         if (fileType === 'application/pdf' || fileName.endsWith('.pdf')) {
             const arrayBuffer = await file.arrayBuffer();
             const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
-            
+
             // Parallel extraction of pages
             const pagePromises = [];
             for (let i = 1; i <= pdf.numPages; i++) {
@@ -108,7 +108,7 @@ const POSEntryAutomation: React.FC = () => {
         if (spreadsheetMimeTypes.includes(fileType) || spreadsheetExtensions.some(ext => fileName.endsWith(ext))) {
             return extractTextFromExcel(file);
         }
-        
+
         throw new Error(`Unsupported file type: ${file.name}. Only PDF and CSV files are supported.`);
     };
 
@@ -124,7 +124,7 @@ const POSEntryAutomation: React.FC = () => {
             setJournalEntriesByFile({});
         }
     };
-    
+
     const handleRemoveFile = (fileNameToRemove: string) => {
         setSelectedFiles(prevFiles => prevFiles.filter(file => file.name !== fileNameToRemove));
         setFileStatuses(prev => {
@@ -133,7 +133,7 @@ const POSEntryAutomation: React.FC = () => {
             return newState;
         });
     };
-    
+
     const resetState = () => {
         setSelectedFiles([]);
         setFileStatuses({});
@@ -162,7 +162,7 @@ const POSEntryAutomation: React.FC = () => {
             try {
                 const cfg = useAppStore.getState().getLLMConfig();
                 let extractedData;
-                
+
                 if (cfg.provider === 'none') {
                     // Use Python Rules Engine backend
                     const { extractWithBackend } = await import('../services/backendService');
@@ -175,20 +175,20 @@ const POSEntryAutomation: React.FC = () => {
                     }
                     extractedData = await extractTransactionsFromText(rawText);
                 }
-                
+
                 const journalEntries = generateJournalEntries(extractedData, '50-000001', true, undefined, file.name);
-                
+
                 setJournalEntriesByFile(prev => ({
                     ...prev,
                     [file.name]: journalEntries
                 }));
                 setFileStatuses(prev => ({ ...prev, [file.name]: 'done' }));
             } catch (err: any) {
-                 setErrors(prev => ({
+                setErrors(prev => ({
                     ...prev,
                     [file.name]: err.message || "An unknown error occurred."
-                 }));
-                 setFileStatuses(prev => ({ ...prev, [file.name]: 'error' }));
+                }));
+                setFileStatuses(prev => ({ ...prev, [file.name]: 'error' }));
             }
         });
 
@@ -203,27 +203,27 @@ const POSEntryAutomation: React.FC = () => {
         const zip = new JSZip();
         const selectedFileNames = new Set(selectedFiles.map(f => f.name));
 
-        const filesToIncludeInZip = Object.keys(journalEntriesByFile).filter(fileName => 
+        const filesToIncludeInZip = Object.keys(journalEntriesByFile).filter(fileName =>
             selectedFileNames.has(fileName) && journalEntriesByFile[fileName]?.length > 0
         );
-        
+
         if (filesToIncludeInZip.length === 0) {
             setErrors({ general: "No journal entries from the selected files are available to download." });
             return;
         }
-        
+
         for (const fileName of filesToIncludeInZip) {
             const entries = journalEntriesByFile[fileName];
-            
+
             const xlsxContent50 = convertToXLSX(entries);
             const pos50FileName = fileName.replace(/\.(pdf|csv)$/i, '_POS50.xlsx');
             zip.file(pos50FileName, xlsxContent50);
-            
+
             const xlsxContent49 = convertToPOS49XLSX(entries);
             const pos49FileName = fileName.replace(/\.(pdf|csv)$/i, '_POS49.xlsx');
             zip.file(pos49FileName, xlsxContent49);
         }
-        
+
         const zipBlob = await zip.generateAsync({ type: 'blob' });
         const link = document.createElement('a');
         if (link.href) {
@@ -231,8 +231,8 @@ const POSEntryAutomation: React.FC = () => {
         }
         link.href = URL.createObjectURL(zipBlob);
 
-        const downloadFileName = filesToIncludeInZip.length === 1 
-            ? filesToIncludeInZip[0].replace(/\.(pdf|csv)$/i, '.zip') 
+        const downloadFileName = filesToIncludeInZip.length === 1
+            ? filesToIncludeInZip[0].replace(/\.(pdf|csv)$/i, '.zip')
             : "JournalEntries.zip";
         link.download = downloadFileName;
         document.body.appendChild(link);
@@ -243,7 +243,7 @@ const POSEntryAutomation: React.FC = () => {
 
     const handleDownloadSingleSheet = useCallback(() => {
         if (Object.keys(journalEntriesByFile).length === 0) return;
-    
+
         const selectedFileNames = new Set(selectedFiles.map(f => f.name));
         const filesToProcess = Object.keys(journalEntriesByFile)
             .filter(fileName => selectedFileNames.has(fileName) && journalEntriesByFile[fileName]?.length > 0)
@@ -253,7 +253,7 @@ const POSEntryAutomation: React.FC = () => {
             setErrors({ general: "No journal entries from the selected files are available to download." });
             return;
         }
-    
+
         const consolidatedEntries: JournalEntry[] = [];
         let journalNumberBase = 0;
 
@@ -273,7 +273,7 @@ const POSEntryAutomation: React.FC = () => {
                 }
                 return newEntry;
             });
-            
+
             consolidatedEntries.push(...modifiedEntries);
             journalNumberBase += 2;
         }
@@ -303,22 +303,22 @@ const POSEntryAutomation: React.FC = () => {
                 numberOfVoucher: lineNumCounter,
             };
         });
-    
+
         if (finalEntries.length === 0) {
             setErrors({ general: "No journal entries were generated to download." });
             return;
         }
-    
+
         try {
             const xlsxContent = convertToXLSX(finalEntries);
             const blob = new Blob([xlsxContent], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            
+
             const link = document.createElement('a');
             if (link.href) {
                 URL.revokeObjectURL(link.href);
             }
             link.href = URL.createObjectURL(blob);
-            
+
             const downloadFileName = filesToProcess.length === 1
                 ? filesToProcess[0].replace(/\.(pdf|csv)$/i, '.xlsx')
                 : "Consolidated_Journal_Entries.xlsx";
@@ -334,7 +334,7 @@ const POSEntryAutomation: React.FC = () => {
 
     const handleDownloadPOS49SingleSheet = useCallback(() => {
         if (Object.keys(journalEntriesByFile).length === 0) return;
-    
+
         const selectedFileNames = new Set(selectedFiles.map(f => f.name));
         const filesToProcess = Object.keys(journalEntriesByFile)
             .filter(fileName => selectedFileNames.has(fileName) && journalEntriesByFile[fileName]?.length > 0)
@@ -344,7 +344,7 @@ const POSEntryAutomation: React.FC = () => {
             setErrors({ general: "No journal entries from the selected files are available to download." });
             return;
         }
-    
+
         const consolidatedEntries: JournalEntry[] = [];
         let journalNumberBase = 0;
 
@@ -364,7 +364,7 @@ const POSEntryAutomation: React.FC = () => {
                 }
                 return newEntry;
             });
-            
+
             consolidatedEntries.push(...modifiedEntries);
             journalNumberBase += 2;
         }
@@ -394,22 +394,22 @@ const POSEntryAutomation: React.FC = () => {
                 numberOfVoucher: lineNumCounter,
             };
         });
-    
+
         if (finalEntries.length === 0) {
             setErrors({ general: "No journal entries were generated to download." });
             return;
         }
-    
+
         try {
             const xlsxContent = convertToPOS49XLSX(finalEntries);
             const blob = new Blob([xlsxContent], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            
+
             const link = document.createElement('a');
             if (link.href) {
                 URL.revokeObjectURL(link.href);
             }
             link.href = URL.createObjectURL(blob);
-            
+
             const downloadFileName = filesToProcess.length === 1
                 ? filesToProcess[0].replace(/\.(pdf|csv)$/i, '_POS49.xlsx')
                 : "Consolidated_Journal_Entries_POS49.xlsx";
@@ -433,8 +433,8 @@ const POSEntryAutomation: React.FC = () => {
             return allEntries;
         }
         const lowercasedTerm = searchTerm.toLowerCase();
-        return allEntries.filter(entry => 
-            Object.values(entry).some(value => 
+        return allEntries.filter(entry =>
+            Object.values(entry).some(value =>
                 String(value).toLowerCase().includes(lowercasedTerm)
             )
         );
@@ -451,7 +451,7 @@ const POSEntryAutomation: React.FC = () => {
                 if (entryIndex !== -1) {
                     newState[fileName] = [...entries];
                     newState[fileName][entryIndex] = { ...targetEntry, [field]: value };
-                    
+
                     // Update global store as well so Copilot sees changes
                     setTimeout(() => {
                         const allEntries = Object.values(newState).flat();
@@ -469,7 +469,7 @@ const POSEntryAutomation: React.FC = () => {
         if (hasJournalEntries || hasErrors) return "2. Download Results";
         return "2. Results";
     };
-    
+
     const getRightPanelDescription = () => {
         if (hasJournalEntries) return `Processing complete. Generated journal entries for ${successfulFilesCount} file(s). Choose your download format.`;
         if (hasErrors) return "Processing complete, but some files could not be processed. Please review the errors below.";
@@ -484,15 +484,15 @@ const POSEntryAutomation: React.FC = () => {
                 <div className="bg-dark-200 p-6 rounded-lg shadow-lg">
                     <div className="flex justify-between items-center">
                         <h2 className="text-xl font-semibold mb-3 text-slate-200">1. Upload Bank Statements</h2>
-                         {selectedFiles.length > 0 && (
+                        {selectedFiles.length > 0 && (
                             <button onClick={resetState} className="text-sm text-sky-400 hover:text-sky-300">Start Over</button>
                         )}
                     </div>
                     <p className="text-sm text-slate-400 mb-4">
-                       Select one or more bank statements in PDF or CSV format.
+                        Select one or more bank statements in PDF or CSV format.
                     </p>
-                    
-                    <div 
+
+                    <div
                         className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-dark-300 border-dashed rounded-md cursor-pointer hover:border-sky-500 transition-colors"
                         onClick={() => fileInputRef.current?.click()}
                         onDrop={(e) => { e.preventDefault(); handleFileChange({ target: { files: e.dataTransfer.files } } as any); }}
@@ -517,11 +517,11 @@ const POSEntryAutomation: React.FC = () => {
                         <div className="mt-4 space-y-2">
                             <h3 className="font-semibold text-slate-300">Selected files:</h3>
                             {selectedFiles.map((file, index) => (
-                                <FileListItem 
-                                    key={index} 
-                                    file={file} 
-                                    status={fileStatuses[file.name] || 'pending'} 
-                                    onRemove={handleRemoveFile} 
+                                <FileListItem
+                                    key={index}
+                                    file={file}
+                                    status={fileStatuses[file.name] || 'pending'}
+                                    onRemove={handleRemoveFile}
                                 />
                             ))}
                         </div>
@@ -542,18 +542,18 @@ const POSEntryAutomation: React.FC = () => {
                 <div className="bg-dark-200 p-6 rounded-lg shadow-lg flex flex-col">
                     <h2 className="text-xl font-semibold mb-1 text-slate-200">{getRightPanelTitle()}</h2>
                     <p className="text-sm text-slate-400 mb-4 h-10">{getRightPanelDescription()}</p>
-                    
+
                     <div className="flex-grow flex flex-col justify-start space-y-4">
-                       {hasErrors && Object.entries(errors).map(([fileName, errorMsg]) => (
+                        {hasErrors && Object.entries(errors).map(([fileName, errorMsg]) => (
                             <div key={fileName} className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-md animate-fade-in" role="alert">
                                 <strong className="font-bold">{fileName === 'general' ? 'Error' : `Error in ${fileName}`}: </strong>
                                 <span className="block sm:inline">{errorMsg}</span>
                             </div>
                         ))}
-                        
+
                         {hasJournalEntries && (
                             <div className="space-y-4">
-                                 <JournalEntryTable
+                                <JournalEntryTable
                                     headers={OUTPUT_HEADER}
                                     entries={filteredEntries}
                                     searchTerm={searchTerm}
@@ -572,21 +572,21 @@ const POSEntryAutomation: React.FC = () => {
                                         onClick={handleDownloadSingleSheet}
                                         className="w-full inline-flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-200 focus:ring-green-500"
                                     >
-                                       <DownloadIcon className="-ml-1 mr-3 h-5 w-5" />
+                                        <DownloadIcon className="-ml-1 mr-3 h-5 w-5" />
                                         Download POS 50
                                     </button>
                                     <button
                                         onClick={handleDownloadPOS49SingleSheet}
                                         className="w-full inline-flex justify-center items-center px-6 py-3 border border-transparent text-base font-medium rounded-md shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-200 focus:ring-emerald-500"
                                     >
-                                       <DownloadIcon className="-ml-1 mr-3 h-5 w-5" />
+                                        <DownloadIcon className="-ml-1 mr-3 h-5 w-5" />
                                         Download POS 49
                                     </button>
                                 </div>
                             </div>
                         )}
 
-                         {(!isLoading && !hasJournalEntries && !hasErrors) && (
+                        {(!isLoading && !hasJournalEntries && !hasErrors) && (
                             <div className="text-center text-slate-500 flex-grow flex items-center justify-center">
                                 <p>Upload files and click 'Process' to begin.</p>
                             </div>
