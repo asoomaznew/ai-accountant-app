@@ -1,7 +1,0 @@
-unsloth
-torch
-transformers
-datasets
-gcsfs
-accelerate
-bitsandbytes
