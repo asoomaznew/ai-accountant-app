@@ -1,0 +1,1 @@
+Build AI Accountant D365 OS V3: Router -> Business Engine -> Accounting Rules -> AI Enrichment -> Pydantic -> Confidence -> D365 Export -> Audit. Use deterministic Python first, AI only for enrichment. Include InvoiceEngine, BankStatementEngine, TableEngine, MasterDataEngine, ConfidenceEngine, ExportEngine.

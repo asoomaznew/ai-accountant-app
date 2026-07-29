@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { getLLMConfig } from "./localLlmService";
+import { getLLMConfig, streamWebLLM } from "./localLlmService";
 import { getApiKey } from "./llmGateway";
 import { useAppStore } from "../store/useAppStore";
 import { AppMode } from "../types";
@@ -206,14 +206,24 @@ Always split your output using these XML tags:
       }
     }
   } else if (config.provider === 'webllm') {
-    // WebLLM fallback
-    const replyText = "Local WebLLM does not support streaming in this version. " +
-      "Please configure Gemini or Ollama for full streaming and tool calling.";
-    onUpdate({
-      thoughts: "WebLLM fallback",
-      content: replyText,
-      suggestions: ["Switch to Gemini"]
-    });
+    try {
+      await streamWebLLM(
+        prompt,
+        history,
+        systemPrompt,
+        (chunkText: string) => {
+          fullText += chunkText;
+          const parsed = extractStructuredResponse(fullText);
+          onUpdate(parsed);
+        }
+      );
+    } catch (e: any) {
+      onUpdate({
+        thoughts: "WebLLM stream failed",
+        content: `Error streaming from WebLLM: ${e.message}`,
+        suggestions: ["Check Settings", "Switch to Gemini"]
+      });
+    }
   } else {
     // Python Rules Engine fallback - Route to Backend ChatbotAgent
     const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://127.0.0.1:8000";

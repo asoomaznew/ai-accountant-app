@@ -107,5 +107,7 @@ export type AppMode =
   | "pos_entry"
   | "pos_report"
   | "smart_merge"
-  | "ai_settings";
+  | "bahrain_cust_payment"
+  | "ai_settings"
+  | "v3_architecture";
 

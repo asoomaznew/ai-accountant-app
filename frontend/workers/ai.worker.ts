@@ -86,6 +86,36 @@ export const aiWorker = {
   },
 
   /**
+   * Generate text using the loaded WebLLM model with streaming.
+   */
+  async generateStream(
+    prompt: string,
+    history: { role: 'user' | 'model'; content: string }[],
+    systemMsg: string,
+    onChunk: (chunk: string) => void
+  ): Promise<void> {
+    if (!engine) throw new Error('WebLLM engine not initialized. Call initWebLLM() first.');
+
+    const options: any = {
+      messages: [
+        { role: 'system', content: systemMsg },
+        ...history.map(h => ({ role: h.role === 'model' ? 'assistant' : 'user', content: h.content })),
+        { role: 'user', content: prompt }
+      ],
+      temperature: 0.2,
+      max_tokens: 4096,
+      stream: true,
+    };
+
+    const asyncChunkGenerator = await engine.chat.completions.create(options);
+    for await (const chunk of asyncChunkGenerator) {
+      if (chunk.choices[0]?.delta?.content) {
+        onChunk(chunk.choices[0].delta.content);
+      }
+    }
+  },
+
+  /**
    * Returns true if the engine is loaded and ready.
    */
   isReady(): boolean {

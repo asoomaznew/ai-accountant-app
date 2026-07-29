@@ -13,6 +13,8 @@ import Convert001To49Automation from "./components/Convert001To49Automation";
 import PdfQaComponent from "./components/PdfQaComponent";
 import PdfKeywordSearchComponent from "./components/PdfKeywordSearchComponent";
 import RenamerComponent from "./components/RenamerComponent";
+import BahrainCustPaymentAutomation from "./components/BahrainCustPaymentAutomation";
+import OSDashboard from "./components/OSDashboard";
 
 import { useAppStore } from "./store/useAppStore";
 import { ChevronLeft } from "lucide-react";
@@ -73,6 +75,7 @@ export default function App() {
       case "processing_jobs":   setMode("pos_report"); break;
       case "merge_pdfs":        setMode("merge_pdfs"); break;
       case "smart_merge":       setMode("smart_merge"); break;
+      case "bahrain_cust_payment": setMode("bahrain_cust_payment"); break;
       // File Tools
       case "rename":            setMode("rename"); break;
       case "keyword_search":    setMode("keyword_search"); break;
@@ -80,6 +83,7 @@ export default function App() {
       // System
       case "ai_models":
       case "settings":          setMode("ai_settings"); break;
+      case "v3_architecture":   setMode("v3_architecture"); break;
     }
   };
 
@@ -93,9 +97,11 @@ export default function App() {
     : mode === "pos_report"     ? "pos_report"
     : mode === "merge_pdfs"     ? "merge_pdfs"
     : mode === "smart_merge"    ? "smart_merge"
+    : mode === "bahrain_cust_payment" ? "bahrain_cust_payment"
     : mode === "rename"         ? "rename"
     : mode === "keyword_search" ? "keyword_search"
     : mode === "search"         ? "search"
+    : mode === "v3_architecture"? "v3_architecture"
     : mode === "ai_settings"    ? "ai_models"
     : "dashboard";
 
@@ -132,9 +138,11 @@ export default function App() {
       {mode === "pos_entry" && <POSEntryAutomation />}
       {mode === "pos_report" && <POSReport />}
       {mode === "smart_merge" && <SmartMergeAutomation />}
+      {mode === "bahrain_cust_payment" && <BahrainCustPaymentAutomation />}
       {mode === "rename" && <RenamerComponent />}
       {mode === "search" && <PdfQaComponent />}
       {mode === "keyword_search" && <PdfKeywordSearchComponent />}
+      {mode === "v3_architecture" && <OSDashboard />}
     </DashboardLayout>
   );
 }

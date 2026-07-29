@@ -8,7 +8,7 @@ import { motion } from "framer-motion";
 import {
   Tags, Briefcase, Stethoscope, FileSearch, MessageSquare,
   RefreshCw, Calculator, FileStack, Receipt, FileBarChart,
-  Sparkles, ArrowRight, Search,
+  Sparkles, ArrowRight, Search, FileText,
 } from "lucide-react";
 import { cn } from "../lib/utils";
 
@@ -19,7 +19,7 @@ import { cn } from "../lib/utils";
 export type AppMode =
   | "home" | "entry" | "rename" | "warba_entry" | "keyword_search"
   | "search" | "convert_001_to_49" | "ending_balance" | "merge_pdfs"
-  | "pos_entry" | "pos_report" | "smart_merge";
+  | "pos_entry" | "pos_report" | "smart_merge" | "v3_architecture" | "bahrain_cust_payment";
 
 interface ToolCard {
   readonly id: AppMode;
@@ -116,6 +116,21 @@ const TOOLS: readonly ToolCard[] = [
     desc: "Search across multiple PDF files for any keyword or phrase — returns exact matches with page references",
     icon: <Search size={20} />,
     gradient: "from-amber-500 to-orange-500",
+  },
+  {
+    id: "v3_architecture",
+    name: "V3 Architecture",
+    desc: "View the new 12-layer OS architecture pipeline with advanced agent network",
+    icon: <Sparkles size={20} />,
+    gradient: "from-indigo-500 to-purple-500",
+    tag: "New",
+  },
+  {
+    id: "bahrain_cust_payment",
+    name: "Bahrain CustPayment",
+    desc: "Process emails to Excel for Bahrain CustPayment",
+    icon: <FileText size={20} />,
+    gradient: "from-sky-400 to-indigo-500",
   },
 ] as const;
 

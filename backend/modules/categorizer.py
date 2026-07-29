@@ -7,6 +7,8 @@
 import json
 import logging
 from typing import Optional
+
+from rapidfuzz import fuzz
 from .llm_gateway import ask_llm
 
 logger = logging.getLogger(__name__)
@@ -40,8 +42,8 @@ ACCOUNT_CATEGORIES = {
 # ─────────────────────────────────────────────────────────────────────────────
 
 KEYWORD_RULES: list[tuple[list[str], str]] = [
-    # Bank Charges
-    (["fee", "chg", "charge", "commission", "bank fee", "dd/chg",
+    # Bank Charges — be specific: don't use bare 'fee' here
+    (["bank fee", "chg", "charge", "commission", "dd/chg",
       "service charge", "maintenance fee", "swift chg"], "Bank Charges"),
 
     # POS Revenue
@@ -67,9 +69,10 @@ KEYWORD_RULES: list[tuple[list[str], str]] = [
     (["electricity", "water", "internet", "telecom", "zain", "ooredoo",
       "stc", "mew", "moc"], "Utilities Expense"),
 
-    # Government
+    # Government — must come BEFORE generic 'fee' to win on 'government fees'
     (["mof", "pam", "municipality", "civil id", "residency",
-      "govt", "government", "license fee", "mosal"], "Government Fees"),
+      "govt", "government", "license fee", "mosal", "government fee",
+      "govt fee"], "Government Fees"),
 
     # Insurance
     (["insurance", "premium", "takaful"], "Insurance Expense"),
@@ -81,8 +84,6 @@ KEYWORD_RULES: list[tuple[list[str], str]] = [
     (["refund", "reversal", "returned"], "Other Income"),
 ]
 
-
-from rapidfuzz import fuzz
 
 def classify_by_rules(description: str) -> Optional[str]:
     """

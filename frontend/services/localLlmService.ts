@@ -393,6 +393,20 @@ export const callLocalLLM = async (
   throw new Error(`Unknown provider: ${cfg.provider}`);
 };
 
+/**
+ * Stream WebLLM generation
+ */
+export const streamWebLLM = async (
+  prompt: string,
+  history: { role: 'user' | 'model'; content: string }[],
+  systemMsg: string,
+  onChunk: (chunk: string) => void
+): Promise<void> => {
+  await initWebLLM();
+  const api = getWorkerAPI();
+  await api.generateStream(prompt, history, systemMsg, proxy(onChunk));
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────

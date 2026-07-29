@@ -176,7 +176,7 @@ const POSEntryAutomation: React.FC = () => {
                     extractedData = await extractTransactionsFromText(rawText);
                 }
                 
-                const journalEntries = generateJournalEntries(extractedData, '50-000001', true);
+                const journalEntries = generateJournalEntries(extractedData, '50-000001', true, undefined, file.name);
                 
                 setJournalEntriesByFile(prev => ({
                     ...prev,
@@ -440,6 +440,30 @@ const POSEntryAutomation: React.FC = () => {
         );
     }, [journalEntriesByFile, searchTerm]);
 
+    const handleEntryEdit = useCallback((index: number, field: keyof JournalEntry, value: string | number) => {
+        const targetEntry = filteredEntries[index];
+        if (!targetEntry) return;
+
+        setJournalEntriesByFile(prev => {
+            const newState = { ...prev };
+            for (const [fileName, entries] of Object.entries(newState)) {
+                const entryIndex = entries.findIndex(e => e === targetEntry);
+                if (entryIndex !== -1) {
+                    newState[fileName] = [...entries];
+                    newState[fileName][entryIndex] = { ...targetEntry, [field]: value };
+                    
+                    // Update global store as well so Copilot sees changes
+                    setTimeout(() => {
+                        const allEntries = Object.values(newState).flat();
+                        useAppStore.getState().setCurrentJournalEntries(allEntries);
+                    }, 0);
+                    break;
+                }
+            }
+            return newState;
+        });
+    }, [filteredEntries]);
+
 
     const getRightPanelTitle = () => {
         if (hasJournalEntries || hasErrors) return "2. Download Results";
@@ -534,6 +558,7 @@ const POSEntryAutomation: React.FC = () => {
                                     entries={filteredEntries}
                                     searchTerm={searchTerm}
                                     onSearchChange={setSearchTerm}
+                                    onEntryEdit={handleEntryEdit}
                                 />
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                                     <button

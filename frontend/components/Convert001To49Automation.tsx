@@ -162,6 +162,62 @@ const Convert001To49Automation: React.FC = () => {
         );
     }, [previewEntries, searchTerm]);
 
+    const handleEntryEdit = useCallback((index: number, field: keyof JournalEntry, value: string | number) => {
+        // Map camelCase keys back to the excel header strings
+        const keyMap: Record<string, string> = {
+            journalNumber: "Journal Number",
+            journalName: "Journal Name",
+            lineNum: "Line Num",
+            postingDate: "Posting Date",
+            accountType: "Account Type - Ledger - 0/ Customer - 1 /Vendor - 2/ Fixed assets - 5/ Bank - 6",
+            accountNo: "Account No",
+            description: "Description",
+            debitAmount: "Debit Amount",
+            creditAmount: "Credit Amount",
+            currencyCode: "Currency Code",
+            exchangeRate: "Exchange Rate",
+            offsetAccountType: "Offset account Type - Ledger - 0/ Customer - 1 /Vendor - 2/ Fixed assets - 5/ Bank - 6",
+            offsetAccount: "Offset account",
+            invoiceNo: "Invoice No",
+            documentNo: "Document No",
+            documentDate: "Document Date",
+            dueDate: "Due Date",
+            assetTransType: "Asset trans type - Acq - 1 / Depre - 3",
+            postingProfile: "Posting Profile",
+            paymentMode: "Payment Mode",
+            paymentReference: "Payment Reference",
+            numberOfVoucher: "Number of Voucher",
+            activities: "Activities",
+            country: "Country",
+            departments: "Departments",
+            projectId: "Project_ID",
+            propertyId: "Property_ID"
+        };
+        
+        const originalKey = keyMap[field];
+        if (!originalKey) return;
+
+        // Since filteredEntries is mapped from journalEntriesByFile sequentially per file,
+        // we can find the matching file and index.
+        let currentIndex = 0;
+        setJournalEntriesByFile(prev => {
+            const newState = { ...prev };
+            for (const [fileName, entries] of Object.entries(newState)) {
+                if (index < currentIndex + entries.length) {
+                    const localIndex = index - currentIndex;
+                    newState[fileName] = [...entries];
+                    newState[fileName][localIndex] = { 
+                        ...newState[fileName][localIndex], 
+                        [originalKey]: value 
+                    };
+                    break;
+                }
+                currentIndex += entries.length;
+            }
+            return newState;
+        });
+    }, [previewEntries]);
+
     const hasErrors = Object.keys(errors).length > 0;
     const hasJournalEntries = previewEntries.length > 0;
 
@@ -234,6 +290,7 @@ const Convert001To49Automation: React.FC = () => {
                                     entries={filteredEntries}
                                     searchTerm={searchTerm}
                                     onSearchChange={setSearchTerm}
+                                    onEntryEdit={handleEntryEdit}
                                 />
                                 <button
                                     onClick={handleDownload}

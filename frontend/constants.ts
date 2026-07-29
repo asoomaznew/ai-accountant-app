@@ -247,3 +247,11 @@ export const BATCH_MAPPING: Record<string, { description: string, bankAccount: s
   "50-001280": { description: "KIBJY-2258 – POS Rent", bankAccount: "KIBJY-2258 : KIB-JOYA0110-10-232-258", last4: "2258" },
   "50-001281": { description: "KIBMH-2231 – POS Insurance & Utilities", bankAccount: "KIBMH-2231 : KIB-MH0110-10-232-231", last4: "2231" }
 };
+
+// Bahrain Customer Master (mirrored from backend)
+export const BAHRAIN_CUSTOMER_MASTER: Record<string, { code: string, name: string }> = {
+  "BHW1-C-12": { code: "24-000033", name: "Savon Company WLL" },
+  "BHW1-C-25": { code: "24-000032", name: "Crown Gold W.L.L" },
+  "BHW1-C-21": { code: "24-000035", name: "Baraka Sweets Factory" },
+  "BHW1-C-9":  { code: "24-000053", name: "WAED INDUSTRIAL INNOVATION COMPANY W.L.L" },
+};

@@ -24,15 +24,25 @@ echo ""
 echo "⚙️  Starting Python Backend on port 8000..."
 cd "$DIR/backend"
 
-if [ ! -f "venv/bin/activate" ]; then
-    echo "   📦 Creating virtual environment..."
-    python3.12 -m venv venv
-    venv/bin/pip install --upgrade pip -q
-    venv/bin/pip install -r requirements.txt -q
+# Copy .env from project root into backend if not already present
+if [ ! -f ".env" ] && [ -f "$DIR/.env" ]; then
+    cp "$DIR/.env" .
 fi
 
-source venv/bin/activate
-uvicorn main:app --host 127.0.0.1 --port 8000 --reload &
+# Detect venv using uvicorn presence (works with any Python version)
+if [ ! -f "venv/bin/uvicorn" ]; then
+    echo "   📦 Creating virtual environment..."
+    rm -rf venv
+    python3 -m venv venv
+    ./venv/bin/python3 -m pip install --upgrade pip -q
+    ./venv/bin/python3 -m pip install -r requirements.txt -q
+fi
+
+# Kill any stale processes holding port 8000
+lsof -ti :8000 | xargs kill -9 2>/dev/null || true
+sleep 1
+
+./venv/bin/python3 -m uvicorn main:app --host 127.0.0.1 --port 8000 &
 BACKEND_PID=$!
 
 for i in $(seq 1 30); do

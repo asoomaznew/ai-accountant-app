@@ -1,5 +1,5 @@
 import { ExtractedData, JournalEntry } from '../types';
-import { CLOVER_BANK_INFO, VENDOR_OFFSET_ACCOUNTS, ACCOUNT_NO_TO_OFFSET_MAPPING, OUTPUT_HEADER } from '../constants';
+import { CLOVER_BANK_INFO, WARBA_BANK_INFO, VENDOR_OFFSET_ACCOUNTS, WARBA_VENDOR_OFFSET_ACCOUNTS, ACCOUNT_NO_TO_OFFSET_MAPPING, OUTPUT_HEADER } from '../constants';
 import * as XLSX from 'xlsx';
 
 function formatDateToDDMMYYYY(isoDate: string): string {
@@ -24,31 +24,31 @@ function normalizeAcc(acc: string | undefined): string {
 }
 
 /**
- * Try to infer the bank account number from transaction descriptions or the
- * overall account name (for cases where Gemini returned "N/A").
+ * Try to infer the bank account number from transaction descriptions, 
+ * overall account name, or filename (for cases where Gemini returned "N/A" or Terminal ID).
  *
  * Looks for clinic name keywords (e.g. "Aram", "Joya", "Iris", "Med Marine") and
  * matches against CLOVER_BANK_INFO.accountName. Returns the FIRST matching
  * accountNo, or null if no match.
  */
-function inferAccountFromDescription(descText: string, accountName?: string): string | null {
-    const haystack = `${accountName || ""} ${descText || ""}`.toLowerCase();
+function inferAccountFromDescription(descText: string, accountName?: string, fileName?: string): string | null {
+    const haystack = `${accountName || ""} ${descText || ""} ${fileName || ""}`.toLowerCase();
     if (!haystack.trim()) return null;
 
     // Define an ordered list of clinic name keywords (longest first to avoid
     // false matches like "Med" before "Med Marine").
     const CLINIC_KEYWORDS: Array<{ keywords: string[]; preferredAccountNo: string }> = [
         { keywords: ["med marine"],  preferredAccountNo: "KIBMM-2207" },
-        { keywords: ["med gray"],    preferredAccountNo: "KIBMG-2320" },
-        { keywords: ["medical harbour"], preferredAccountNo: "KIBMH-2231" },
-        { keywords: ["al aseel"],   preferredAccountNo: "KIBAA-2380" },
+        { keywords: ["med gray", "med gray"],    preferredAccountNo: "KIBMG-2320" },
+        { keywords: ["medical harbour", "medical harbour"], preferredAccountNo: "KIBMH-2231" },
+        { keywords: ["al aseel", "aseel"],   preferredAccountNo: "KIBAA-2380" },
         { keywords: ["aram"],       preferredAccountNo: "KIBAM-2290" },  // primary (per constants.ts)
-        { keywords: ["fourth medical"], preferredAccountNo: "KIBFR-8602" },
+        { keywords: ["fourth medical", "fourth"], preferredAccountNo: "KIBFR-8602" },
         { keywords: ["joya"],       preferredAccountNo: "KIBJY-2258" },
         { keywords: ["iris"],       preferredAccountNo: "KIBIR-2282" },
         { keywords: ["yarrow"],     preferredAccountNo: "KIBYR-4765" },
-        { keywords: ["tri care"],   preferredAccountNo: "KIBTR-5252" },
-        { keywords: ["mewl"],       preferredAccountNo: "KIBML-6601" },
+        { keywords: ["tri care", "tricare"],   preferredAccountNo: "KIBTR-5252" },
+        { keywords: ["medwell", "med well", "mewl"], preferredAccountNo: "KIBML-6601" },
     ];
 
     for (const { keywords, preferredAccountNo } of CLINIC_KEYWORDS) {
@@ -132,20 +132,65 @@ export function generateJournalEntries(
 
     // --- Lookups ---
     const normAcc = normalizeAcc(accountNumber);
-    const bankInfo = CLOVER_BANK_INFO.find(info => {
-        const check1 = normalizeAcc(info.accountNo) === normAcc;
-        const check2 = info.oldAccountNo ? normalizeAcc(info.oldAccountNo) === normAcc : false;
-        return check1 || check2;
-    });
+    
+    // Helper to find bank info across all banks
+    const findBankInfo = (acc: string) => {
+        const nAcc = normalizeAcc(acc);
+        let info = CLOVER_BANK_INFO.find(info => 
+            normalizeAcc(info.accountNo) === nAcc || (info.oldAccountNo && normalizeAcc(info.oldAccountNo) === nAcc)
+        );
+        if (info) return { info, isWarba: false };
+        
+        info = WARBA_BANK_INFO.find(info => 
+            normalizeAcc(info.accountNo) === nAcc || (info.oldAccountNo && normalizeAcc(info.oldAccountNo) === nAcc)
+        );
+        if (info) return { info, isWarba: true };
+        
+        return null;
+    };
+
+    let bankInfoResult = findBankInfo(accountNumber);
+
+    // If not found (e.g. accountNumber is a Terminal ID or "N/A"), infer from name and descriptions
+    if (!bankInfoResult) {
+        const descText = transactions.slice(0, 5).map(t => t.description || "").join(" ");
+        const inferredAcc = inferAccountFromDescription(descText, accountName, fileName);
+        if (inferredAcc) {
+            accountNumber = inferredAcc;
+            bankInfoResult = findBankInfo(accountNumber);
+            if (bankInfoResult) {
+                console.info(`[journalService] Successfully mapped to bankInfo using inferred account "${accountNumber}"`);
+            }
+        }
+    }
+    
+    // If still not found, try inferring from filename just in case
+    if (!bankInfoResult && fileName) {
+        const last4Match = fileName.match(/[- ](\d{4})[-. ]/);
+        if (last4Match) {
+            const last4 = last4Match[1];
+            const inferredKey = Object.keys(ACCOUNT_NO_TO_OFFSET_MAPPING).find(key => key.endsWith(`-${last4}`));
+            if (inferredKey) {
+                accountNumber = inferredKey;
+                bankInfoResult = findBankInfo(accountNumber);
+                if (bankInfoResult) {
+                    console.info(`[journalService] Successfully mapped using filename last 4 digits "${last4}"`);
+                }
+            }
+        }
+    }
+
+    const bankInfo = bankInfoResult?.info;
+    const isWarba = bankInfoResult?.isWarba || false;
     
     const finalJournalAccountNo = bankInfo ? bankInfo.accountNo : accountNumber;
     
     // Default mapping for offset account
-    const activeOffsetAccounts = offsetAccounts || VENDOR_OFFSET_ACCOUNTS;
+    const activeOffsetAccounts = offsetAccounts || (isWarba ? WARBA_VENDOR_OFFSET_ACCOUNTS : VENDOR_OFFSET_ACCOUNTS);
     const defaultOffsetAccount = forcedOffsetAccount || (bankInfo && activeOffsetAccounts[bankInfo.accountName]) || ACCOUNT_NO_TO_OFFSET_MAPPING[finalJournalAccountNo] || '50-000001';
    
     if (!bankInfo) {
-        console.warn(`Could not find matching bank info for account number: ${accountNumber}. Some fields may be 'N/A'.`);
+        console.warn(`Could not find matching bank info for account number or name: ${accountNumber} / ${accountName}. Some fields may be 'N/A'.`);
     }
 
     // Filter out transactions that should be ignored based on description.

@@ -18,9 +18,11 @@ class GenerateContentRequest(BaseModel):
     contents: str
     config: Optional[Dict[str, Any]] = None
 
-# Allowed users list
-ALLOWED_EMAILS = ["asoomaznew@gmail.com", "brownyhisamsung@gmail.com"]
-GOOGLE_CLIENT_ID = "384447139870-436hvkhdrm94fdclt2evcjak2l0utb0u.apps.googleusercontent.com"
+# Allowed users — loaded from .env (ALLOWED_EMAILS=comma-separated list)
+ALLOWED_EMAILS: list[str] = [
+    e.strip() for e in os.getenv("ALLOWED_EMAILS", "").split(",") if e.strip()
+]
+GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)s | %(message)s")
 logger = logging.getLogger(__name__)
@@ -248,41 +250,78 @@ async def gemini_proxy(req: GenerateContentRequest, user_email: str = Depends(ve
             raise HTTPException(status_code=e.code, detail=str(e))
         raise HTTPException(status_code=500, detail=str(e))
 
-# ── KIB Corporate Automation Endpoints ─────────────────────────────────────
-from agents.master_router_agent import MasterRouterAgent
-router_agent = MasterRouterAgent()
+@app.post("/api/bahrain/process")
+async def process_bahrain_emails(
+    files: List[UploadFile] = File(...),
+    user_email: str = Depends(verify_google_token),
+):
+    """
+    Process Bahrain CustPayment email PDFs:
+    1. Extract text with pdfplumber
+    2. Send to Gemini 3.5 Flash with CUSTOMER_MASTER mapping
+    3. Return structured JSON (rows: pdate, unit, ccode, cname, desc, amt, force)
+    """
+    from google import genai
+    from google.genai import types
+    import pdfplumber
+    import json as _json
 
-@app.post("/api/route-tool/{tool_id}")
-async def route_tool_request(tool_id: str, request: Request, user_email: str = Depends(verify_google_token)):
-    """
-    Master entrypoint for the Micro-Agent Architecture.
-    Routes requests based on the tool_id to the appropriate Agent.
-    """
-    try:
-        # We can handle multipart form data (files) or JSON body
-        content_type = request.headers.get('content-type', '')
-        payload = {}
-        
-        if 'multipart/form-data' in content_type:
-            form = await request.form()
-            files = form.getlist("files")
-            payload["files"] = files
-            for key, value in form.items():
-                if key != "files":
-                    payload[key] = value
-        else:
-            payload = await request.json()
-            
-        payload["user_email"] = user_email
-        
-        result = await router_agent.route_request(tool_id, payload)
-        if result.get("status") == "error":
-            raise HTTPException(status_code=500, detail=result.get("error"))
-            
-        return result
-    except Exception as e:
-        logger.error(f"❌ Error in master router for tool {tool_id}: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="Gemini API key not configured.")
+
+    # Bahrain Customer Master (mirrored from frontend service)
+    CUSTOMER_MASTER = {
+        "BHW1-C-12": {"code": "24-000033", "name": "Savon Company WLL"},
+        "BHW1-C-25": {"code": "24-000032", "name": "Crown Gold W.L.L"},
+        "BHW1-C-21": {"code": "24-000035", "name": "Baraka Sweets Factory"},
+        "BHW1-C-9":  {"code": "24-000053", "name": "WAED INDUSTRIAL INNOVATION COMPANY W.L.L"},
+    }
+
+    client = genai.Client(api_key=api_key)
+    results = []
+
+    for file in files:
+        filename = file.filename or "unknown.pdf"
+        try:
+            content = await file.read()
+            # Save temp
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tf:
+                tf.write(content)
+                temp_path = tf.name
+
+            # Extract text
+            full_text = ""
+            with pdfplumber.open(temp_path) as pdf:
+                for page in pdf.pages:
+                    full_text += (page.extract_text() or "") + "\n"
+
+            os.unlink(temp_path)
+
+            prompt = f"""You are an expert at extracting payment advice information from emails.
+Analyze the email text and extract the payment breakdown.
+Email Text: {full_text}
+Available Customer Master: {_json.dumps(CUSTOMER_MASTER)}
+Return ONLY a valid JSON object with this schema:
+{{"rows":[{{"pdate":"DD-MM-YYYY","unit":"KEY","ccode":"CODE","cname":"NAME","desc":"DESCRIPTION","amt":NUMBER,"force":"Rent|EWA"}}]}}
+"""
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    temperature=0.1,
+                    response_mime_type="application/json",
+                ),
+            )
+            data = _json.loads(response.text)
+            results.append({"fileName": filename, "success": True, "extractedData": data})
+
+        except Exception as e:
+            logger.error(f"Bahrain process failed for {filename}: {e}")
+            results.append({"fileName": filename, "success": False, "error": str(e)})
+
+    return {"results": results}
+
 
 if __name__ == "__main__":
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=True)

@@ -1,0 +1,20 @@
+pandas
+openpyxl
+pymupdf
+pdfplumber
+pypdf
+rapidfuzz
+pytesseract
+pillow
+sqlalchemy
+reportlab
+ollama
+xlrd
+watchdog
+pydantic
+instructor
+openai
+# optional OCR engines:
+# easyocr
+# paddleocr
+# paddlepaddle

@@ -1,0 +1,18 @@
+PROJECT: AI Accountant D365 OS V3
+
+Build a production-style AI Accountant pipeline using:
+- Document Router with score-based routing reasons
+- OCR-first handling for scanned PDFs
+- Specialised Business Engines: Invoice, Bank Statement, Table
+- Master Data Lookup with RapidFuzz
+- Accounting Rule Engine before AI
+- AI Enrichment only when needed
+- Pydantic validation for all data models
+- Instructor/Ollama for structured output when available
+- Confidence Engine
+- D365 Export Engine
+- SQLite Audit Trail
+
+Golden rule:
+Python extracts, calculates, validates and exports.
+AI only classifies/enriches/mapping suggestions and never owns calculations.

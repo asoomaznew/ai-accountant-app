@@ -14,6 +14,9 @@ from modules.parser_module import parse_warba_statement
 from .merchant_rules import extract_kib_aseel
 from .smart_merchant_parser import SmartMerchantParser
 
+from services.ocr_engine import OCREngine
+from services.ai_enrichment_engine import AIEnrichmentEngine
+
 logger = logging.getLogger(__name__)
 
 class SupervisorAgent:
@@ -55,6 +58,14 @@ class SupervisorAgent:
         # 1. Extraction Agent (Pure text & table parsing)
         extracted = self.extractor.extract_text_and_tables(file_path, filename)
         raw_text = extracted["text"]
+        
+        # OCR Fallback if text is empty
+        if not raw_text or not raw_text.strip():
+            logger.info("SupervisorAgent: Text is empty. Triggering OCR Engine fallback.")
+            ocr = OCREngine()
+            raw_text = ocr.process(file_path)
+            extracted["text"] = raw_text
+
         account_number = extracted["account_number"]
         
         parsed_data = {}
@@ -66,7 +77,13 @@ class SupervisorAgent:
             filename_lower = filename.lower()
             transactions = []
             
-            is_kib = any(kib_name in filename_lower for kib_name in ["aseel", "iris", "fourth", "joya", "med", "yarrow", "aram", "tri care"])
+            KIB_KEYWORDS = [
+                "aseel", "iris", "fourth", "joya", "med gray", "med marine",
+                "med well", "medical harbour", "yarrow", "aram", "tri care",
+                # Short aliases still matched but only after longer ones
+                "medgray", "medmarine", "medwell", "harbour",
+            ]
+            is_kib = any(kib_name in filename_lower for kib_name in KIB_KEYWORDS)
             
             if filename_lower.endswith(('.csv', '.xlsx', '.xls')):
                 logger.info("SupervisorAgent: Merchant file is tabular, using DataFrames.")
@@ -148,5 +165,23 @@ class SupervisorAgent:
 
         # 5. Export Agent (Rounding, formatting keys)
         final_entries = self.exporter.format_for_export(raw_journal_entries)
+
+        # 6. AI Enrichment Layer (Standardized across local Ollama/Instructor & Gemini)
+        logger.info("SupervisorAgent: Triggering AI Enrichment Layer for narrative and account suggestions.")
+        try:
+            ai_enrichment = AIEnrichmentEngine()
+            enrichment = ai_enrichment.enrich(raw_text, "BANK_STATEMENT" if job_type == "bank" else "INVOICE")
+            
+            # Enrich description and offset accounts if AI suggestion is present
+            for line in final_entries:
+                if enrichment.description:
+                    # Append AI-generated accounting narrative to description
+                    current_desc = line.get("description", "")
+                    line["description"] = f"{current_desc} | {enrichment.description}"
+                if enrichment.suggested_account_no and (line.get("account_no") == "999999" or line.get("account_no") == ""):
+                    # Correct suspense accounts using AI matching
+                    line["account_no"] = enrichment.suggested_account_no
+        except Exception as e:
+            logger.warning(f"SupervisorAgent: AI Enrichment Layer failed, continuing without enrichment: {e}")
 
         return final_entries

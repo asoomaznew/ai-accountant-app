@@ -53,11 +53,13 @@ export type NavItemId =
   | "pos_report"
   | "smart_merge"
   | "merge_pdfs"
+  | "bahrain_cust_payment"
   // ── File Tools ──
   | "rename"
   | "keyword_search"
   | "search"
   // ── System ──
+  | "v3_architecture"
   | "ai_models"
   | "settings"
   // Legacy aliases kept for backward-compat
@@ -114,6 +116,7 @@ const NAV_GROUPS: readonly NavGroup[] = [
       { id: "pos_report",        label: "POS Report",       icon: <Activity size={18} /> },
       { id: "merge_pdfs",        label: "Merge PDFs",       icon: <BookOpen size={18} /> },
       { id: "smart_merge",       label: "Smart Merge",      icon: <Sparkles size={18} />, badge: 0 },
+      { id: "bahrain_cust_payment", label: "Bahrain CustPayment", icon: <FileText size={18} /> },
     ],
   },
   {
@@ -127,6 +130,7 @@ const NAV_GROUPS: readonly NavGroup[] = [
   {
     label: "النظام",
     items: [
+      { id: "v3_architecture", label: "V3 Architecture", icon: <LayoutDashboard size={18} /> },
       { id: "ai_models", label: "AI Engine",  icon: <BrainCircuit size={18} /> },
       { id: "settings",  label: "Settings",   icon: <Settings size={18} /> },
     ],
