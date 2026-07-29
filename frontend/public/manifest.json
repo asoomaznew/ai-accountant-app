@@ -1,0 +1,17 @@
+{
+  "short_name": "AI Accountant",
+  "name": "AI Accountant — الوحش المحاسبي",
+  "description": "Automated journal entries for D365 from bank statements.",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "display": "standalone",
+  "orientation": "any"
+}
