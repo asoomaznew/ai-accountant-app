@@ -8,7 +8,9 @@
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ],
-  "env": {
-    "VITE_BACKEND_URL": "@ai-accountant-backend-url"
+  "build": {
+    "env": {
+      "VITE_BACKEND_URL": "https://ai-accountant-backend.onrender.com"
+    }
   }
 }
