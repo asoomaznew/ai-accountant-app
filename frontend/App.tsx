@@ -1,25 +1,29 @@
-import React from "react";
+import React, { lazy, Suspense } from "react";
 import DashboardLayout, { type NavItemId } from "./components/DashboardLayout";
-import DashboardHome from "./components/DashboardHome";
-import AISettings from "./components/AISettings";
-import MerchantEntryAutomation from "./components/MerchantEntryAutomation";
-import WarbaEntryAutomation from "./components/WarbaEntryAutomation";
-import EndingBalanceAutomation from "./components/EndingBalanceAutomation";
-import MergePdfsAutomation from "./components/MergePdfsAutomation";
-import POSEntryAutomation from "./components/POSEntryAutomation";
-import POSReport from "./components/POSReport";
-import SmartMergeAutomation from "./components/SmartMergeAutomation";
-import Convert001To49Automation from "./components/Convert001To49Automation";
-import PdfQaComponent from "./components/PdfQaComponent";
-import PdfKeywordSearchComponent from "./components/PdfKeywordSearchComponent";
-import RenamerComponent from "./components/RenamerComponent";
-import BahrainCustPaymentAutomation from "./components/BahrainCustPaymentAutomation";
-import OSDashboard from "./components/OSDashboard";
 
 import { useAppStore } from "./store/useAppStore";
 import { ChevronLeft } from "lucide-react";
 import { AlertTriangleIcon } from "./components/icons";
 import { AppMode } from "./types";
+
+// Automation screens pull in heavyweight PDF, spreadsheet, and local-LLM
+// libraries. Load each screen only when the user navigates to it so the
+// dashboard can start quickly.
+const DashboardHome = lazy(() => import("./components/DashboardHome"));
+const AISettings = lazy(() => import("./components/AISettings"));
+const MerchantEntryAutomation = lazy(() => import("./components/MerchantEntryAutomation"));
+const WarbaEntryAutomation = lazy(() => import("./components/WarbaEntryAutomation"));
+const EndingBalanceAutomation = lazy(() => import("./components/EndingBalanceAutomation"));
+const MergePdfsAutomation = lazy(() => import("./components/MergePdfsAutomation"));
+const POSEntryAutomation = lazy(() => import("./components/POSEntryAutomation"));
+const POSReport = lazy(() => import("./components/POSReport"));
+const SmartMergeAutomation = lazy(() => import("./components/SmartMergeAutomation"));
+const Convert001To49Automation = lazy(() => import("./components/Convert001To49Automation"));
+const PdfQaComponent = lazy(() => import("./components/PdfQaComponent"));
+const PdfKeywordSearchComponent = lazy(() => import("./components/PdfKeywordSearchComponent"));
+const RenamerComponent = lazy(() => import("./components/RenamerComponent"));
+const BahrainCustPaymentAutomation = lazy(() => import("./components/BahrainCustPaymentAutomation"));
+const OSDashboard = lazy(() => import("./components/OSDashboard"));
 
 const ApiKeyWarningBanner: React.FC<{ onInfoClick: () => void }> = ({
   onInfoClick,
@@ -54,9 +58,8 @@ const ApiKeyWarningBanner: React.FC<{ onInfoClick: () => void }> = ({
 export default function App() {
   const mode = useAppStore((state) => state.appMode);
   const setMode = useAppStore((state) => state.setAppMode);
-  const llmConfig = useAppStore((state) => state.llmConfig);
 
-  const isApiKeyMissing = llmConfig.provider === 'gemini' && !import.meta.env.VITE_GEMINI_API_KEY;
+  const isApiKeyMissing = false; // Gemini/Vertex removed; no gemini key to check
 
   const handleNavChange = (navId: NavItemId) => {
     switch (navId) {
@@ -125,24 +128,26 @@ export default function App() {
         </button>
       )}
 
-      {/* Pages */}
-      {mode === "home" && (
-        <DashboardHome onNavigate={(m) => setMode(m as AppMode)} />
-      )}
-      {mode === "ai_settings" && <AISettings />}
-      {mode === "entry" && <MerchantEntryAutomation />}
-      {mode === "warba_entry" && <WarbaEntryAutomation />}
-      {mode === "convert_001_to_49" && <Convert001To49Automation />}
-      {mode === "ending_balance" && <EndingBalanceAutomation />}
-      {mode === "merge_pdfs" && <MergePdfsAutomation />}
-      {mode === "pos_entry" && <POSEntryAutomation />}
-      {mode === "pos_report" && <POSReport />}
-      {mode === "smart_merge" && <SmartMergeAutomation />}
-      {mode === "bahrain_cust_payment" && <BahrainCustPaymentAutomation />}
-      {mode === "rename" && <RenamerComponent />}
-      {mode === "search" && <PdfQaComponent />}
-      {mode === "keyword_search" && <PdfKeywordSearchComponent />}
-      {mode === "v3_architecture" && <OSDashboard />}
+      <Suspense fallback={<div className="py-12 text-center text-slate-400">Loading tool…</div>}>
+        {/* Pages */}
+        {mode === "home" && (
+          <DashboardHome onNavigate={(m) => setMode(m as AppMode)} />
+        )}
+        {mode === "ai_settings" && <AISettings />}
+        {mode === "entry" && <MerchantEntryAutomation />}
+        {mode === "warba_entry" && <WarbaEntryAutomation />}
+        {mode === "convert_001_to_49" && <Convert001To49Automation />}
+        {mode === "ending_balance" && <EndingBalanceAutomation />}
+        {mode === "merge_pdfs" && <MergePdfsAutomation />}
+        {mode === "pos_entry" && <POSEntryAutomation />}
+        {mode === "pos_report" && <POSReport />}
+        {mode === "smart_merge" && <SmartMergeAutomation />}
+        {mode === "bahrain_cust_payment" && <BahrainCustPaymentAutomation />}
+        {mode === "rename" && <RenamerComponent />}
+        {mode === "search" && <PdfQaComponent />}
+        {mode === "keyword_search" && <PdfKeywordSearchComponent />}
+        {mode === "v3_architecture" && <OSDashboard />}
+      </Suspense>
     </DashboardLayout>
   );
 }

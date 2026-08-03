@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { DocumentIcon, ArrowPathIcon, CloudArrowUpIcon, DocumentChartBarIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 import * as pdfjs from 'pdfjs-dist';
-import { extractTransactionsFromText } from '../services/merchantGeminiService';
-import * as XLSX from 'xlsx';
+import ExcelJS from "exceljs";
+import { downloadBlob } from '../utils/downloadHelper';
 import { extractTextFromExcel } from '../services/excelService';
 import { useAppStore } from '../store/useAppStore';
 import type { ExtractedTransaction } from '../types';
@@ -74,19 +74,9 @@ const POSReport: React.FC = () => {
         let maxDate = -Infinity;
 
         try {
-            const cfg = useAppStore.getState().getLLMConfig();
             for (const file of selectedFiles) {
-                let extracted: any;
-                
-                if (cfg.provider === 'none') {
-                    const { extractWithBackend } = await import('../services/backendService');
-                    extracted = await extractWithBackend(file);
-                } else {
-                    const rawText = await extractTextFromFile(file);
-                    extracted = await extractTransactionsFromText(rawText);
-                }
-
-                
+                const { extractWithBackend } = await import('../services/backendService');
+                let extracted = await extractWithBackend(file);
                 if (extracted && extracted.transactions) {
                     extracted.transactions.forEach((t: ExtractedTransaction) => {
                         const date = new Date(t.date);
@@ -167,8 +157,9 @@ const POSReport: React.FC = () => {
         }
     };
 
-    const downloadExcel = () => {
-        const wb = XLSX.utils.book_new();
+    const downloadExcel = async () => {
+        const wb = new ExcelJS.Workbook();
+        const ws = wb.addWorksheet("Report");
         const rows: any[] = [
             [`KNET Collections & Transfer (${dateRange.start} - ${dateRange.end})`],
             ['Clinic Name', 'Transaction Date', 'Account Number', 'Payment way', 'Amount (KWD)']
@@ -203,11 +194,14 @@ const POSReport: React.FC = () => {
         rows.push(['Transfer', paymentWayTotals['Transfer'] || 0]);
         rows.push(['Grand Total', grandTotal]);
 
-        const ws = XLSX.utils.aoa_to_sheet(rows);
-        ws['!cols'] = [{ wch: 30 }, { wch: 15 }, { wch: 20 }, { wch: 15 }, { wch: 15 }];
+        ws.addRows(rows);
+        ws.columns = [
+            { width: 30 }, { width: 15 }, { width: 20 }, { width: 15 }, { width: 15 }
+        ];
 
-        XLSX.utils.book_append_sheet(wb, ws, "Report");
-        XLSX.writeFile(wb, `POS_Report_${dateRange.start.replace(/\//g, '-')}.xlsx`);
+        const buffer = await wb.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        await downloadBlob(blob, `POS_Report_${dateRange.start.replace(/\//g, '-')}.xlsx`);
     };
 
     return (

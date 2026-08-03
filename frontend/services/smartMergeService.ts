@@ -11,6 +11,8 @@ export interface ProcessingResult {
   blob: Blob;
   matched: boolean;
   matchedCsvRows: number;
+  matchedEmailsCount?: number;
+  matchedEmailNames?: string[];
 }
 
 interface BatchData {
@@ -270,6 +272,7 @@ export async function processFiles(
   mainPdfFile: File,
   bankStatements: File[],
   csvFiles: File[],
+  emailPdfs: File[],
   onProgress: (msg: string) => void
 ): Promise<ProcessingResult[]> {
   onProgress("Loading PDF toolset...");
@@ -450,7 +453,9 @@ export async function processFiles(
       fileName,
       blob: new Blob([pdfBytes], { type: 'application/pdf' }),
       matched,
-      matchedCsvRows: matchedRows.length
+      matchedCsvRows: matchedRows.length,
+      matchedEmailsCount: 0,
+      matchedEmailNames: []
     });
   }
 

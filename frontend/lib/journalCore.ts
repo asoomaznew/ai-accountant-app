@@ -1,5 +1,4 @@
 import { ExtractedData, JournalEntry } from '../types';
-import * as XLSX from 'xlsx';
 import { OUTPUT_HEADER } from '../constants';
 import {
     WARBA_BANK_INFO,
@@ -9,7 +8,44 @@ import {
     CLOVER_BANK_INFO,
     VENDOR_OFFSET_ACCOUNTS,
     ACCOUNT_NO_TO_OFFSET_MAPPING,
+    INTERNAL_TRANSFER_ACCOUNT_TO_OFFSET,
 } from '../constants';
+
+// ─────────────────────────────────────────────────────────────
+//  Per-transaction offset account overrides
+// ─────────────────────────────────────────────────────────────
+
+function resolveTransactionOffsetAccount(
+    baseOffsetAccount: string,
+    description: string,
+): { account: string; type: number } {
+    const lower = description.toLowerCase();
+
+    // Find all 12-digit internal account numbers in description
+    const PRIME_ACCOUNTS = new Set(['011010232800', '11010232800']);
+    const internalInDesc = Object.keys(INTERNAL_TRANSFER_ACCOUNT_TO_OFFSET)
+        .filter(acc => acc.length >= 12 && lower.includes(acc.toLowerCase()));
+
+    if (internalInDesc.length >= 2 || lower.includes('al mazaya prime')) {
+        // If Prime is involved → 50-000001, type 2
+        if (internalInDesc.some(acc => PRIME_ACCOUNTS.has(acc)) || lower.includes('al mazaya prime')) {
+            return { account: '50-000001', type: 2 };
+        }
+
+        // Any other inter-account transfer → M11599, type 0
+        return { account: 'M11599', type: 0 };
+    }
+
+    if (lower.includes('saving account profit')) {
+        return { account: 'M52708', type: 0 };
+    }
+
+    // Regular transaction → use the account's own offset from the map
+    // If the account is Prime (50-000001), type must be 2 (Vendor).
+    const type = baseOffsetAccount === '50-000001' ? 2 : 2;
+    return { account: baseOffsetAccount, type };
+}
+
 
 // ─────────────────────────────────────────────────────────────
 //  Public types
@@ -208,7 +244,15 @@ function shouldKeepTransaction(
     transaction: ExtractedData['transactions'][number],
     bankType: BankType,
 ): boolean {
-    const lower = transaction.description.toLowerCase();
+    const desc = (transaction.description || "").trim();
+    if (!desc || desc === "(no description)") {
+        return false;
+    }
+
+    const lower = desc.toLowerCase();
+    if (lower.includes('unknown transaction')) {
+        return false;
+    }
 
     // Merchant side drops debit "fees" entries.
     if (
@@ -227,27 +271,7 @@ function shouldKeepTransaction(
     );
 }
 
-// ─────────────────────────────────────────────────────────────
-//  Per-transaction offset account overrides
-// ─────────────────────────────────────────────────────────────
 
-function resolveTransactionOffsetAccount(
-    baseOffsetAccount: string,
-    description: string,
-): { account: string; type: number } {
-    const lower = description.toLowerCase();
-    let account = baseOffsetAccount;
-    let type = 2; // default
-
-    if (lower.includes('011010232800') || lower.includes('al mazaya prime')) {
-        account = '50-000001';
-    } else if (lower.includes('saving account profit')) {
-        account = 'M52708';
-        type = 0;
-    }
-
-    return { account, type };
-}
 
 // ─────────────────────────────────────────────────────────────
 //  Per-bank journal naming & debit/credit conventions
@@ -611,7 +635,7 @@ export { getJournalConfig };
 //  XLSX output
 // ─────────────────────────────────────────────────────────────
 
-export function convertToXLSX(data: JournalEntry[]): ArrayBuffer {
+export async function convertToXLSX(data: JournalEntry[]): Promise<ArrayBuffer> {
     const header = OUTPUT_HEADER;
     const rows = data.map((entry) => [
         entry.journalNumber,
@@ -644,14 +668,16 @@ export function convertToXLSX(data: JournalEntry[]): ArrayBuffer {
         entry.unitId || ""
     ]);
 
-    const worksheetData = [header, ...rows];
-    const ws = XLSX.utils.aoa_to_sheet(worksheetData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'JournalEntries');
-    return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const ExcelJS = (await import('exceljs')).default;
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('JournalEntries');
+    worksheet.addRow(header);
+    rows.forEach(row => worksheet.addRow(row));
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as ArrayBuffer;
 }
 
-export function convertToPOS49XLSX(data: JournalEntry[]): ArrayBuffer {
+export async function convertToPOS49XLSX(data: JournalEntry[]): Promise<ArrayBuffer> {
     const header = OUTPUT_HEADER;
     const rows = data.map((entry) => [
         entry.journalNumber,
@@ -683,9 +709,11 @@ export function convertToPOS49XLSX(data: JournalEntry[]): ArrayBuffer {
         entry.propertyId,
     ]);
 
-    const worksheetData = [header, ...rows];
-    const ws = XLSX.utils.aoa_to_sheet(worksheetData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'JournalEntriesPOS49');
-    return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const ExcelJS = (await import('exceljs')).default;
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('JournalEntriesPOS49');
+    worksheet.addRow(header);
+    rows.forEach(row => worksheet.addRow(row));
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as ArrayBuffer;
 }

@@ -10,7 +10,7 @@ import type { aiWorker as AiWorkerType } from '../workers/ai.worker';
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type LLMProvider = 'gemini' | 'ollama' | 'webllm' | 'none';
+export type LLMProvider = 'ollama' | 'webllm' | 'none';
 
 export interface LLMConfig {
   provider: LLMProvider;
@@ -118,7 +118,7 @@ export const WEBLLM_MODELS: WebLLMModelOption[] = [
 ];
 
 const DEFAULTS: LLMConfig = {
-  provider: 'gemini',
+  provider: 'none',
   ollamaBaseUrl: 'http://localhost:11434',
   ollamaModel: 'haitham-accountant:latest',
   webllmModelId: 'Qwen2.5-7B-Instruct-q4f16_1-MLC',
@@ -130,8 +130,12 @@ export const getLLMConfig = (): LLMConfig => {
     const webllmModelId = (!savedWebLlmId || savedWebLlmId.includes('Qwen3') || savedWebLlmId.startsWith('HF://'))
       ? DEFAULTS.webllmModelId
       : savedWebLlmId;
+    const savedProvider = localStorage.getItem('llm_provider') ?? DEFAULTS.provider;
+    // Gemini/Vertex was removed from the backend; treat any legacy 'gemini'
+    // setting as 'none' so the deterministic pipeline is used.
+    const provider = (savedProvider === 'gemini' ? 'none' : savedProvider) as LLMProvider;
     return {
-      provider: (localStorage.getItem('llm_provider') ?? DEFAULTS.provider) as LLMProvider,
+      provider,
       ollamaBaseUrl: localStorage.getItem('llm_ollama_url') ?? DEFAULTS.ollamaBaseUrl,
       ollamaModel: localStorage.getItem('llm_ollama_model') ?? DEFAULTS.ollamaModel,
       webllmModelId,

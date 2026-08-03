@@ -1,8 +1,6 @@
 import { ExtractedData, JournalEntry } from '../types';
 import { WARBA_BANK_INFO, WARBA_VENDOR_OFFSET_ACCOUNTS } from '../warbaConstants';
-import { OUTPUT_HEADER } from '../constants';
-import * as XLSX from 'xlsx';
-
+import { OUTPUT_HEADER, INTERNAL_TRANSFER_ACCOUNT_TO_OFFSET } from '../constants';
 function normalizeName(name: string): string {
     return name.toLowerCase()
         .replace(/\s+(polyclinic|polyclinics|polyclinc|center|clinic)\s*/g, ' ')
@@ -119,7 +117,16 @@ export function generateJournalEntries(data: ExtractedData, offsetAccounts?: { [
 
     // Filter out transactions that should be ignored based on description.
     const filteredTransactions = correctedTransactions.filter(transaction => {
-        const lowerCaseDescription = transaction.description.toLowerCase();
+        const desc = (transaction.description || "").trim();
+        if (!desc || desc === "(no description)") {
+            return false;
+        }
+
+        const lowerCaseDescription = desc.toLowerCase();
+        if (lowerCaseDescription.includes("unknown transaction")) {
+            return false;
+        }
+
         return !lowerCaseDescription.includes("transfer deposit knet") 
             && !lowerCaseDescription.includes("merchant rcon pay")
             && !lowerCaseDescription.includes("merchant fee")
@@ -140,9 +147,18 @@ export function generateJournalEntries(data: ExtractedData, offsetAccounts?: { [
         let transactionOffsetAccount = baseOffsetAccount;
         let transactionOffsetAccountType = 2; // Default
 
-        if (lowerDesc.includes("011010232800") || lowerDesc.includes("al mazaya prime")) {
-            transactionOffsetAccount = '50-000001';
-        } else if (lowerDesc.includes("saving account profit")) {
+        // Inter-account transfer detection: look for 12-digit account numbers in description
+        const PRIME_ACCOUNTS_W = new Set(['011010232800', '11010232800']);
+        const internalAccountsInDescW = Object.keys(INTERNAL_TRANSFER_ACCOUNT_TO_OFFSET)
+            .filter(acc => acc.length >= 12 && lowerDesc.includes(acc.toLowerCase()));
+
+        if (internalAccountsInDescW.length >= 2) {
+            const hasPrime = internalAccountsInDescW.some(acc => PRIME_ACCOUNTS_W.has(acc));
+            transactionOffsetAccount = hasPrime ? '50-000001' : 'M11599';
+            transactionOffsetAccountType = 0;
+        }
+
+        if (lowerDesc.includes("saving account profit")) {
             transactionOffsetAccount = 'M52708';
             transactionOffsetAccountType = 0;
         }
@@ -293,7 +309,7 @@ export function generateJournalEntries(data: ExtractedData, offsetAccounts?: { [
     });
 }
 
-export function convertToXLSX(data: JournalEntry[]): ArrayBuffer {
+export async function convertToXLSX(data: JournalEntry[]): Promise<ArrayBuffer> {
     const header = OUTPUT_HEADER;
     const rows = data.map(entry => [
         entry.journalNumber,
@@ -326,9 +342,11 @@ export function convertToXLSX(data: JournalEntry[]): ArrayBuffer {
         entry.unitId || ""
     ]);
 
-    const worksheetData = [header, ...rows];
-    const ws = XLSX.utils.aoa_to_sheet(worksheetData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "JournalEntries");
-    return XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const ExcelJS = (await import('exceljs')).default;
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("JournalEntries");
+    worksheet.addRow(header);
+    rows.forEach(row => worksheet.addRow(row));
+    const buffer = await workbook.xlsx.writeBuffer();
+    return buffer as ArrayBuffer;
 }

@@ -107,7 +107,7 @@ export const aiWorker = {
       stream: true,
     };
 
-    const asyncChunkGenerator = await engine.chat.completions.create(options);
+    const asyncChunkGenerator = await engine.chat.completions.create(options) as unknown as AsyncIterable<any>;
     for await (const chunk of asyncChunkGenerator) {
       if (chunk.choices[0]?.delta?.content) {
         onChunk(chunk.choices[0].delta.content);

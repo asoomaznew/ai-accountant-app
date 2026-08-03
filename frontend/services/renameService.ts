@@ -1,6 +1,5 @@
-
 import { RenameMethod } from '../types';
-import { getAiName, getShortenedSuffix, getMedicalStatementFilename } from './geminiService';
+import { getAiName, getShortenedSuffix, getMedicalStatementFilename } from './backendService';
 
 // Helper to parse simple CSV text. Handles comma or tab delimiters.
 const parseCsv = (text: string): string[][] => {

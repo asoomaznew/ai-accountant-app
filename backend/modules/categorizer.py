@@ -123,7 +123,7 @@ async def categorize_transactions(transactions: list[dict]) -> list[dict]:
     """
     Main entry point:
     1. Classifies clear transactions using rules (instant).
-    2. Sends ONLY ambiguous ones to AI (Ollama → Gemini fallback).
+    2. Sends ONLY ambiguous ones to an optional local model (Ollama); otherwise uses a deterministic keyword fallback.
     3. Returns all transactions with 'category' field populated.
     """
     ambiguous = []
@@ -161,6 +161,58 @@ async def categorize_transactions(transactions: list[dict]) -> list[dict]:
     return transactions
 
 
+# Keyword map used when no local model is available (deterministic fallback).
+_KEYWORD_TO_CATEGORY = [
+    ("rent", "Rent Expense"),
+    ("lease", "Rent Expense"),
+    ("salary", "Salary Expense"),
+    ("wage", "Salary Expense"),
+    ("utility", "Utilities Expense"),
+    ("electric", "Utilities Expense"),
+    ("water", "Utilities Expense"),
+    ("sewa", "Utilities Expense"),
+    ("dewa", "Utilities Expense"),
+    ("insurance", "Insurance Expense"),
+    ("medical", "Medical Supplies"),
+    ("clinic", "Medical Supplies"),
+    ("supply", "Office Supplies"),
+    ("stationery", "Office Supplies"),
+    ("government", "Government Fees"),
+    ("fee", "Government Fees"),
+    ("transfer in", "Transfer In"),
+    ("inward", "Transfer In"),
+    ("deposit", "Transfer In"),
+    ("transfer", "Transfer Out"),
+    ("withdrawal", "Cash Withdrawal"),
+    ("loan", "Loan Payment"),
+    ("pos", "POS Revenue"),
+    ("knet", "POS Revenue"),
+    ("sale", "POS Revenue"),
+    ("invoice", "Accounts Receivable"),
+    ("customer", "Accounts Receivable"),
+    ("supplier", "Accounts Payable"),
+    ("vendor", "Accounts Payable"),
+    ("bank charge", "Bank Charges"),
+    ("commission", "Bank Charges"),
+    ("income", "Other Income"),
+]
+
+
+def _keyword_categorize(ambiguous_txns: list[dict]) -> list[str]:
+    """Pure-Python categorization (no model). Maps description keywords to a
+    known ACCOUNT_CATEGORIES name; defaults to 'Other Expense'."""
+    out = []
+    for txn in ambiguous_txns:
+        desc = (txn.get("description") or "").lower()
+        chosen = "Other Expense"
+        for kw, cat in _KEYWORD_TO_CATEGORY:
+            if kw in desc:
+                chosen = cat
+                break
+        out.append(chosen)
+    return out
+
+
 async def _ask_ai_for_categories(ambiguous_txns: list[dict]) -> list[str]:
     """
     Build a minimal prompt with ONLY the ambiguous transactions
@@ -188,7 +240,12 @@ one for each transaction, in the same order. Example:
 {{"categories": ["Bank Charges", "POS Revenue", "Other Expense"]}}
 """
 
-    raw = await ask_llm(prompt)
+    try:
+        raw = await ask_llm(prompt)
+    except Exception as e:
+        logger.warning(f"⚠️ Categorizer: model unavailable ({e}); using deterministic keyword fallback.")
+        return _keyword_categorize(ambiguous_txns)
+
     try:
         data = json.loads(raw)
     except json.JSONDecodeError as exc:

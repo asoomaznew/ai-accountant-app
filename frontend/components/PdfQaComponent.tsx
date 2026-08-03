@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import FileUploader from "./FileUploader";
-import { getAnswerFromText } from "../services/geminiService";
+import { getAnswerFromText } from "../services/backendService";
 import {
   DocumentMagnifyingGlassIcon,
   TrashIcon,

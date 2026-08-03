@@ -1,9 +1,51 @@
 import logging
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 import pandas as pd
 
+from .merchant_constants import INTERNAL_TRANSFER_ACCOUNT_TO_OFFSET
+
 logger = logging.getLogger(__name__)
+
+# Set of all internal account numbers (both 11 and 12-digit versions) for fast lookup
+_INTERNAL_ACCOUNTS_SET = frozenset(INTERNAL_TRANSFER_ACCOUNT_TO_OFFSET.keys())
+_PRIME_ACCOUNTS = frozenset({"011010232800", "11010232800"})
+_ACCOUNT_PATTERN = re.compile(r'\b(0?\d{11})\b')
+
+
+def _detect_inter_account_transfer(description: str):
+    """
+    Detect if this is an inter-account transfer between our internal accounts.
+    Returns:
+        ('50-000001', 0)  if Prime Medical (011010232800) is involved with another company
+        ('M11599', 0)     if two accounts from DIFFERENT companies appear (FROM/TO)
+        (offset, 2)       if two accounts from the SAME company appear (intra-company)
+        (None, None)      if not an inter-account transfer (< 2 internal accounts found)
+    """
+    # Find all 11-12 digit numbers in the description
+    found_numbers = _ACCOUNT_PATTERN.findall(description)
+    # Normalize each found number: check both with and without leading zero
+    internal_found = set()
+    for num in found_numbers:
+        if num in _INTERNAL_ACCOUNTS_SET:
+            internal_found.add(num)
+        stripped = num.lstrip('0')
+        if stripped in _INTERNAL_ACCOUNTS_SET:
+            internal_found.add(num if num in _INTERNAL_ACCOUNTS_SET else stripped)
+
+    # Need at least 2 internal account numbers to be any kind of inter-account transfer
+    if len(internal_found) < 2:
+        return None, None
+
+    # If Prime Medical is one of the accounts → 50-000001, type 2
+    if internal_found & _PRIME_ACCOUNTS:
+        return "50-000001", 2
+
+    # Any other inter-account transfer → M11599, type 0
+    return "M11599", 0
+
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Warba Polyclinics — Bank Account Mapping (from warbaConstants.ts)
@@ -268,10 +310,29 @@ def generate_journal_entries(extracted_data: dict) -> list:
             logger.warning("Skipping transaction with non-positive/invalid amount: %r", row)
             continue
 
-        desc = str(row.get("description") or "").strip() or "(no description)"
+        desc = str(row.get("description") or "").strip()
+        if not desc or desc == "(no description)" or "unknown transaction" in desc.lower():
+            skipped += 1
+            logger.info("Skipping unknown/unmatched transaction: %r", row)
+            continue
+
+        # User does NOT want "merchant rcon pay" lines journaled — skip them.
+        if "merchant rcon pay" in desc.lower():
+            skipped += 1
+            logger.info("Skipping 'merchant rcon pay' transaction: %r", row)
+            continue
         txn_type = str(row.get("type") or "").strip().lower()
         category = str(row.get("category") or "Other Expense")
         offset_account = CATEGORY_TO_ACCOUNT.get(category, "69-000001")
+
+        # Override offset account based on description content
+        # Use the inter-account transfer detector (requires 2 internal account numbers in desc)
+        inter_offset, inter_type = _detect_inter_account_transfer(desc)
+        if inter_offset:
+            offset_account = inter_offset
+        elif "saving account profit" in desc.lower():
+            offset_account = "M52708"
+        # Otherwise → category default (already set above)
 
         line_num = len(journal_entries) + 1
         try:

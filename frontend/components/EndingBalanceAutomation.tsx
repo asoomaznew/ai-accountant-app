@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import FileUploader from "./FileUploader";
 import { extractTextFromPdf } from "../services/pdfService";
-import { getEndingBalanceFromText } from "../services/balanceGeminiService";
+import { getEndingBalanceFromText } from "../services/backendService";
 import {
   SpinnerIcon,
   ProcessIcon,
@@ -10,7 +10,8 @@ import {
   ClockIcon,
   DownloadIcon,
 } from "./icons";
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
+import { downloadBlob } from '../utils/downloadHelper';
 
 interface FileResult {
   file: File;
@@ -84,7 +85,7 @@ const EndingBalanceAutomation: React.FC = () => {
     setFiles([]);
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const doneFiles = files.filter((f) => f.status === "done");
     if (doneFiles.length === 0) return;
 
@@ -95,11 +96,21 @@ const EndingBalanceAutomation: React.FC = () => {
       "End Balance": f.endBalance,
     }));
 
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Ending Balances");
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Ending Balances");
+    worksheet.columns = [
+      { header: "File Name", key: "File Name" },
+      { header: "Corporate Name", key: "Corporate Name" },
+      { header: "Account Number", key: "Account Number" },
+      { header: "End Balance", key: "End Balance" },
+    ];
+    data.forEach((row) => worksheet.addRow(row));
 
-    XLSX.writeFile(workbook, "Ending_Balances.xlsx");
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    await downloadBlob(blob, "Ending_Balances.xlsx");
   };
 
   return (

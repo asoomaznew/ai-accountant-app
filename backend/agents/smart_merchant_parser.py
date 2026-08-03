@@ -151,13 +151,26 @@ class SmartMerchantParser:
         desc_col = get_orig_col(["description", "particulars", "details", "narration", "remarks"])
         debit_col = get_orig_col(["debit", "withdrawal", "dr"])
         credit_col = get_orig_col(["credit", "deposit", "cr"])
-        amount_col = get_orig_col(["amount"])
+        amount_col = get_orig_col(["net amount", "amount"])
         
         if not date_col:
             # Maybe the first row is actually the header (if read without header=0 but standard behavior uses first row)
             # Or this sheet doesn't contain transactions. We fallback to returning empty and letting caller check other sheets.
             logger.info("Could not identify a date column. Skipping dataframe.")
             return transactions
+
+        # Extract account number if available in columns
+        acc_col = get_orig_col(["account number", "account", "acc no", "acc"])
+        if acc_col and self.account_number == "N/A":
+            for _, row in df.iterrows():
+                val = str(row.get(acc_col, "")).strip()
+                if val and val.lower() not in ("nan", "nat", "none", ""):
+                    # check if it looks like an account number (digits)
+                    digits = re.sub(r'\D', '', val)
+                    if len(digits) >= 8:
+                        self.account_number = digits
+                        logger.info(f"SmartMerchantParser: Extracted account number {self.account_number} from dataframe")
+                        break
 
         # Iterate over rows
         for _, row in df.iterrows():
@@ -176,9 +189,25 @@ class SmartMerchantParser:
             desc = ""
             if desc_col:
                 desc = str(row.get(desc_col, "")).strip()
-                if desc.lower() in ("nan", "none", ""):
-                    desc = "Merchant Transaction"
             
+            if not desc or desc.lower() in ("nan", "none", ""):
+                # Try to build description from POS specific columns if available
+                trans_type = str(row.get("Trans Type", "")).strip()
+                card_type = str(row.get("Card Type", "")).strip()
+                if trans_type and trans_type.lower() != "nan":
+                    desc = f"POS {trans_type} - {card_type}".strip(" -")
+                else:
+                    desc = "POS Settlement"
+            
+            # Per-row account number
+            row_acc = self.account_number
+            if acc_col:
+                val = str(row.get(acc_col, "")).strip()
+                if val and val.lower() not in ("nan", "nat", "none", ""):
+                    digits = re.sub(r'\D', '', val)
+                    if len(digits) >= 8:
+                        row_acc = digits
+
             # Amount
             raw_amount = 0.0
             is_credit = False
@@ -220,7 +249,8 @@ class SmartMerchantParser:
                     "raw_date": formatted_date,
                     "raw_desc": desc,
                     "raw_amount": str(raw_amount),
-                    "raw_credit": str(raw_amount) if is_credit else None
+                    "raw_credit": str(raw_amount) if is_credit else None,
+                    "raw_account_number": row_acc
                 })
                 
         logger.info(f"SmartMerchantParser: Extracted {len(transactions)} transactions from DataFrame")

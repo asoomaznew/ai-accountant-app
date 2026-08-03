@@ -1,8 +1,9 @@
 import React, { useState, useMemo, useRef } from "react";
 import JSZip from "jszip";
+import { downloadBlob } from '../utils/downloadHelper';
 import * as pdfLib from "pdf-lib";
 import { searchKeywordsInPdf, extractTextFromPdfWithPageNumbers } from "../services/pdfService";
-import { getAnswerFromText } from "../services/geminiService";
+import { getAnswerFromText } from "../services/backendService";
 import FileUploader from "./FileUploader";
 import { QaResult, QaResultCard } from "./PdfQaComponent";
 import { KeywordSearchResult } from "../services/pdfService";
@@ -282,10 +283,7 @@ const PdfKeywordSearchComponent: React.FC = () => {
     }
 
     const content = await zip.generateAsync({ type: "blob" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(content);
-    link.download = "extracted_pdf_pages.zip";
-    link.click();
+    await downloadBlob(content, "extracted_pdf_pages.zip");
   };
 
   const handleGlobalDownloadSpecific = () => {

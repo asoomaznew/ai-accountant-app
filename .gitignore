@@ -12,6 +12,27 @@ __pycache__/
 node_modules/
 dist/
 
+# PyInstaller build output (local desktop app only — not needed in git)
+backend/dist/
+backend/build/
+backend/.pyinstaller_cache/
+AI Accountant.app/
+backend/AI Accountant.spec
+
+# Hermes agent scratch inside the project (sessions/logs — never commit)
+backend/.hermes/
+
+# Local debug dumps (may contain data)
+backend/debug_output.json
+
+# Local backups / archive snapshots (not source of truth)
+archive/
+backend/archive/
+
+# Workspace / editor files
+
+*.code-workspace
+
 # Large Model Files
 *.gguf
 *.bin

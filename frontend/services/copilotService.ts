@@ -1,6 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
 import { getLLMConfig, streamWebLLM } from "./localLlmService";
-import { getApiKey } from "./llmGateway";
 import { useAppStore } from "../store/useAppStore";
 import { AppMode } from "../types";
 
@@ -132,29 +130,7 @@ Always split your output using these XML tags:
 
   let fullText = "";
 
-  if (config.provider === 'gemini') {
-    const apiKey = getApiKey();
-    if (!apiKey) {
-      throw new Error("Google Gemini API key is not configured.");
-    }
-    const ai = new GoogleGenAI({ apiKey });
-    const responseStream = await ai.models.generateContentStream({
-      model: 'gemini-2.5-flash',
-      contents,
-      config: {
-        systemInstruction: systemPrompt,
-        temperature: 0.2
-      }
-    });
-
-    for await (const chunk of responseStream) {
-      if (chunk.text) {
-        fullText += chunk.text;
-        const parsed = extractStructuredResponse(fullText);
-        onUpdate(parsed);
-      }
-    }
-  } else if (config.provider === 'ollama') {
+  if (config.provider === 'ollama') {
     const baseUrl = config.ollamaBaseUrl.replace(/\/$/, '');
     const model = config.ollamaModel;
     if (!model) throw new Error("No Ollama model selected. Go to AI Settings.");
@@ -221,7 +197,7 @@ Always split your output using these XML tags:
       onUpdate({
         thoughts: "WebLLM stream failed",
         content: `Error streaming from WebLLM: ${e.message}`,
-        suggestions: ["Check Settings", "Switch to Gemini"]
+        suggestions: ["Check Settings", "Switch to WebLLM"]
       });
     }
   } else {

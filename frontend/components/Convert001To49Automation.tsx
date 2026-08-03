@@ -1,7 +1,9 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { ProcessIcon, DownloadIcon, XIcon, CheckCircleIcon, XCircleIcon, ClockIcon, SpinnerIcon } from './icons';
 import { extractTextFromExcel } from '../services/excelService';
-import * as XLSX from 'xlsx';
+import ExcelJS from "exceljs";
+import Papa from 'papaparse';
+import { downloadBlob } from '../utils/downloadHelper';
 import JournalEntryTable from './JournalEntryTable';
 import { JournalEntry } from '../types';
 import { convert001To49Rows, CONVERT_OUTPUT_HEADERS } from '../services/convert001To49Service';
@@ -60,16 +62,47 @@ const Convert001To49Automation: React.FC = () => {
         }
     };
 
+
+
     const processExcelFile = async (file: File) => {
         try {
-            const arrayBuffer = await file.arrayBuffer();
-            const data = new Uint8Array(arrayBuffer);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const sheetName = workbook.SheetNames[0];
-            const sheet = workbook.Sheets[sheetName];
-            const rows = XLSX.utils.sheet_to_json(sheet) as any[];
-            const convertedEntries = convert001To49Rows(rows);
-            return convertedEntries;
+            if (file.name.toLowerCase().endsWith('.csv')) {
+                return new Promise<any[]>((resolve, reject) => {
+                    Papa.parse(file, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: (results) => {
+                            resolve(convert001To49Rows(results.data as any[]));
+                        },
+                        error: (err) => reject(err)
+                    });
+                });
+            } else {
+                const arrayBuffer = await file.arrayBuffer();
+                const workbook = new ExcelJS.Workbook();
+                await workbook.xlsx.load(arrayBuffer);
+                const worksheet = workbook.worksheets[0];
+                
+                const rows: any[] = [];
+                let headers: any[] = [];
+                
+                worksheet.eachRow((row, rowNumber) => {
+                    const rowValues = row.values as any[];
+                    if (rowNumber === 1) {
+                        headers = rowValues;
+                    } else {
+                        const rowObj: any = {};
+                        headers.forEach((header, index) => {
+                            if (index > 0 && header) {
+                                rowObj[header] = rowValues[index];
+                            }
+                        });
+                        rows.push(rowObj);
+                    }
+                });
+                const convertedEntries = convert001To49Rows(rows);
+                return convertedEntries;
+            }
         } catch (err) {
             throw err;
         }
@@ -99,25 +132,25 @@ const Convert001To49Automation: React.FC = () => {
         setIsLoading(false);
     };
 
-    const handleDownload = () => {
+    const handleDownload = async () => {
         if (Object.keys(journalEntriesByFile).length === 0) return;
 
         const allEntries = Object.values(journalEntriesByFile).flat();
         if (allEntries.length === 0) return;
 
-        const ws = XLSX.utils.json_to_sheet(allEntries, { header: CONVERT_OUTPUT_HEADERS });
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Converted Entries");
-
-        const xlsxContent = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
-        const blob = new Blob([xlsxContent], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const workbook = new ExcelJS.Workbook();
+        const worksheet = workbook.addWorksheet("Converted Entries");
+        worksheet.addRow(CONVERT_OUTPUT_HEADERS);
         
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = "Converted_49_000001.xlsx";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        allEntries.forEach(entry => {
+            const rowArr = CONVERT_OUTPUT_HEADERS.map(header => entry[header]);
+            worksheet.addRow(rowArr);
+        });
+
+        const buffer = await workbook.xlsx.writeBuffer();
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        
+        await downloadBlob(blob, "Converted_49_000001.xlsx");
     };
 
     // To display them using JournalEntryTable, map to expected keys

@@ -14,6 +14,10 @@ Tests:
 import json
 import os
 import sys
+import asyncio
+from typing import Any
+
+import httpx
 import pytest
 
 # ── Path setup so tests run from both repo root and backend/ dir ──────────────
@@ -22,22 +26,53 @@ sys.path.insert(0, os.path.dirname(__file__))
 # Bypass Google token verification in tests
 os.environ.setdefault("ALLOWED_EMAILS", "test@example.com")
 os.environ.setdefault("GOOGLE_CLIENT_ID", "test-client-id")
-os.environ.setdefault("GEMINI_API_KEY", "test-key")
+# No cloud keys: app is local-only (deterministic + optional Ollama).
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Fixtures
 # ─────────────────────────────────────────────────────────────────────────────
 
+class ASGIClient:
+    """Small synchronous facade over httpx's supported ASGI transport.
+
+    Starlette's synchronous TestClient is deprecated in the installed
+    Starlette release. Keeping the tests synchronous while using httpx's
+    native ASGI transport removes that deprecated compatibility layer.
+    """
+
+    def __init__(self, app: Any, *, raise_app_exceptions: bool = True):
+        self.app = app
+        self.raise_app_exceptions = raise_app_exceptions
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        return False
+
+    def get(self, url: str, **kwargs: Any) -> httpx.Response:
+        async def request() -> httpx.Response:
+            transport = httpx.ASGITransport(
+                app=self.app,
+                raise_app_exceptions=self.raise_app_exceptions,
+            )
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                return await client.get(url, **kwargs)
+
+        return asyncio.run(request())
+
 @pytest.fixture(scope="session")
 def client():
     """FastAPI TestClient with auth bypass enabled."""
-    from fastapi.testclient import TestClient
     from main import app, verify_google_token
 
     # Override auth so tests don't need a real Google token
     app.dependency_overrides[verify_google_token] = lambda: "test@example.com"
-    with TestClient(app) as c:
+    with ASGIClient(app) as c:
         yield c
     app.dependency_overrides.clear()
 
@@ -48,17 +83,17 @@ def client():
 
 class TestHealthCheck:
     def test_root_returns_running(self, client):
-        res = client.get("/")
+        res = client.get("/api/health")
         assert res.status_code == 200
         data = res.json()
         assert data["status"] == "running"
         assert "version" in data
 
     def test_root_lists_ai_providers(self, client):
-        res = client.get("/")
+        res = client.get("/api/health")
         data = res.json()
         assert "ai_providers" in data
-        assert "gemini" in data["ai_providers"]
+        assert "deterministic" in data["ai_providers"]
         assert "ollama" in data["ai_providers"]
 
 
@@ -78,10 +113,6 @@ class TestModelsEndpoint:
         res = client.get("/api/models")
         assert "Python Rules Engine" in res.json()
 
-    def test_gemini_in_models(self, client):
-        res = client.get("/api/models")
-        assert any("gemini" in m.lower() for m in res.json())
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 3. Auth Middleware
@@ -90,22 +121,33 @@ class TestModelsEndpoint:
 class TestAuthMiddleware:
     def _fresh_client(self):
         """Return a TestClient with NO dependency overrides (real auth middleware)."""
-        from fastapi.testclient import TestClient
         from main import app
         # Ensure no overrides are active from the session fixture
         app.dependency_overrides.clear()
-        return TestClient(app, raise_server_exceptions=False)
+        return ASGIClient(app, raise_app_exceptions=False)
 
     def test_missing_auth_header_returns_401(self):
         """Without any Authorization header the middleware must reject with 401."""
-        with self._fresh_client() as c:
-            res = c.get("/api/models")
-        assert res.status_code == 401
+        import main
+        orig = main.AUTH_DISABLED
+        main.AUTH_DISABLED = False
+        try:
+            with self._fresh_client() as c:
+                res = c.get("/api/models")
+            assert res.status_code == 401
+        finally:
+            main.AUTH_DISABLED = orig
 
     def test_invalid_token_returns_401_or_403(self):
-        with self._fresh_client() as c:
-            res = c.get("/api/models", headers={"Authorization": "Bearer totally-invalid"})
-        assert res.status_code in (401, 403)
+        import main
+        orig = main.AUTH_DISABLED
+        main.AUTH_DISABLED = False
+        try:
+            with self._fresh_client() as c:
+                res = c.get("/api/models", headers={"Authorization": "Bearer totally-invalid"})
+            assert res.status_code in (401, 403)
+        finally:
+            main.AUTH_DISABLED = orig
 
 
 # ─────────────────────────────────────────────────────────────────────────────

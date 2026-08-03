@@ -1,7 +1,8 @@
 import logging
 from typing import Dict, Any, List
 import pandas as pd
-from .merchant_constants import CLOVER_BANK_INFO, VENDOR_OFFSET_ACCOUNTS, ACCOUNT_NO_TO_OFFSET_MAPPING
+from .merchant_constants import CLOVER_BANK_INFO, VENDOR_OFFSET_ACCOUNTS, ACCOUNT_NO_TO_OFFSET_MAPPING, INTERNAL_TRANSFER_ACCOUNT_TO_OFFSET
+from .accounting_module import _detect_inter_account_transfer
 
 logger = logging.getLogger(__name__)
 
@@ -77,10 +78,11 @@ def generate_merchant_journal_entries(
             pass
         if t.get("type") == "debit" and "fees" in desc_lower and amount_val <= 9:
             continue
-        # In KIB statements, KNET deposits and merchant payments represent the core transactions.
-        # Keeping this filter was dropping all credit entries.
-        # if "transfer deposit knet" in desc_lower or "merchant rcon pay" in desc_lower or "transfer withdrawal rental fee" in desc_lower:
-        #     continue
+        # Skip "merchant rcon pay" lines — these are internal reconciliation/payment
+        # entries the user does NOT want journaled (per request). KNET deposits and
+        # other credits are kept.
+        if "merchant rcon pay" in desc_lower:
+            continue
         filtered_transactions.append(t)
 
     if not filtered_transactions:
@@ -93,14 +95,54 @@ def generate_merchant_journal_entries(
         is_credit = str(t.get("type", "")).lower() == "credit"
         desc_lower = str(t.get("description", "")).lower()
         
+        # Per-transaction bank account resolution
+        t_acc = t.get("accountNumber") or account_number
+        norm_acc = _normalize_acc(t_acc)
+        t_bank_info = None
+        for info in CLOVER_BANK_INFO:
+            check1 = _normalize_acc(info.get("accountNo", "")) == norm_acc
+            check2 = _normalize_acc(info.get("oldAccountNo", "")) == norm_acc if info.get("oldAccountNo") else False
+            if check1 or check2:
+                t_bank_info = info
+                break
+
+        if t_bank_info:
+            txn_account_no = t_bank_info.get("accountNo")
+        elif len(norm_acc) >= 4:
+            lower_name = account_name.lower()
+            prefix = "KIB"
+            if "aram" in lower_name: prefix = "KIBAM"
+            elif "gray" in lower_name: prefix = "KIBMG"
+            elif "marine" in lower_name: prefix = "KIBMM"
+            elif "harbour" in lower_name: prefix = "KIBMH"
+            elif "joya" in lower_name: prefix = "KIBJY"
+            elif "fourth" in lower_name: prefix = "KIBFR"
+            elif "tri care" in lower_name: prefix = "KIBTR"
+            elif "aseel" in lower_name: prefix = "KIBAA"
+            elif "iris" in lower_name: prefix = "KIBIR"
+            elif "yarrow" in lower_name: prefix = "KIBYR"
+            elif "mewl" in lower_name or "med well" in lower_name: prefix = "KIBML"
+            txn_account_no = f"{prefix}-{norm_acc[-4:]}"
+        else:
+            txn_account_no = t_acc or final_journal_account_no
+
+        active_b_info = t_bank_info or bank_info
+        
         transaction_offset_account = default_offset_account
         transaction_offset_account_type = 2 # Default Ledger
 
-        if "011010232800" in desc_lower or "al mazaya prime" in desc_lower:
-            transaction_offset_account = "50-000001"
+        # Detect inter-account transfer (requires 2 internal account numbers in description)
+        inter_offset, inter_type = _detect_inter_account_transfer(str(t.get("description", "")))
+        if inter_offset:
+            transaction_offset_account = inter_offset
+            transaction_offset_account_type = inter_type
         elif "saving account profit" in desc_lower:
             transaction_offset_account = "M52708"
-            transaction_offset_account_type = 0 # Default something else in frontend
+            transaction_offset_account_type = 0
+            
+        # If the account is Prime (50-000001), type should always be 2.
+        if transaction_offset_account == "50-000001":
+            transaction_offset_account_type = 2
             
         final_journal_name = "CRNOTE" if is_pos else ("CRNOTE" if is_credit else "STVINV")
         final_journal_number = 2 if is_pos else (2 if is_credit else 1)
@@ -121,7 +163,7 @@ def generate_merchant_journal_entries(
             "journalName": final_journal_name,
             "postingDate": posting_date,
             "accountType": 6,
-            "accountNo": final_journal_account_no,
+            "accountNo": txn_account_no,
             "description": t.get("description", ""),
             "debitAmount": final_debit_amount,
             "creditAmount": final_credit_amount,
@@ -136,11 +178,11 @@ def generate_merchant_journal_entries(
             "postingProfile": "Vend Post",
             "paymentMode": "",
             "paymentReference": "",
-            "activities": bank_info.get("activities", "N/A") if bank_info else "N/A",
-            "country": bank_info.get("country", "N/A") if bank_info else "N/A",
-            "departments": bank_info.get("departments", "N/A") if bank_info else "N/A",
-            "projectId": bank_info.get("projectId", "N/A") if bank_info else "N/A",
-            "propertyId": bank_info.get("propertyId", "N/A") if bank_info else "N/A",
+            "activities": active_b_info.get("activities", "N/A") if active_b_info else "N/A",
+            "country": active_b_info.get("country", "N/A") if active_b_info else "N/A",
+            "departments": active_b_info.get("departments", "N/A") if active_b_info else "N/A",
+            "projectId": active_b_info.get("projectId", "N/A") if active_b_info else "N/A",
+            "propertyId": active_b_info.get("propertyId", "N/A") if active_b_info else "N/A",
             "lineNum": 0,
             "numberOfVoucher": 0,
             "invoiceNo": "",

@@ -1,11 +1,11 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { JournalEntry } from '../types';
-import { extractTransactionsFromText } from '../services/merchantGeminiService';
 import { generateJournalEntries, convertToXLSX, convertToPOS49XLSX } from '../services/journalService';
 import { SpinnerIcon, ProcessIcon, DownloadIcon, XIcon, CheckCircleIcon, XCircleIcon, ClockIcon } from './icons';
 import { OUTPUT_HEADER } from '../constants';
 import * as pdfjs from 'pdfjs-dist';
 import JSZip from 'jszip';
+import { downloadBlob } from '../utils/downloadHelper';
 import JournalEntryTable from './JournalEntryTable';
 import { extractTextFromExcel } from '../services/excelService';
 import PQueue from 'p-queue';
@@ -160,23 +160,11 @@ const POSEntryAutomation: React.FC = () => {
         const tasks = selectedFiles.map(file => async () => {
             setFileStatuses(prev => ({ ...prev, [file.name]: 'processing' }));
             try {
-                const cfg = useAppStore.getState().getLLMConfig();
-                let extractedData;
+                // Use Python Rules Engine backend
+                const { extractWithBackend } = await import('../services/backendService');
+                const extractedData = await extractWithBackend(file);
 
-                if (cfg.provider === 'none') {
-                    // Use Python Rules Engine backend
-                    const { extractWithBackend } = await import('../services/backendService');
-                    extractedData = await extractWithBackend(file);
-                } else {
-                    // Browser AI
-                    const rawText = await extractTextFromFile(file);
-                    if (!rawText.trim()) {
-                        throw new Error("Could not extract any text from the file.");
-                    }
-                    extractedData = await extractTransactionsFromText(rawText);
-                }
-
-                const journalEntries = generateJournalEntries(extractedData, '50-000001', true, undefined, file.name);
+                const journalEntries = generateJournalEntries(extractedData, undefined, true, undefined, file.name);
 
                 setJournalEntriesByFile(prev => ({
                     ...prev,
@@ -215,38 +203,27 @@ const POSEntryAutomation: React.FC = () => {
         for (const fileName of filesToIncludeInZip) {
             const entries = journalEntriesByFile[fileName];
 
-            const xlsxContent50 = convertToXLSX(entries);
+            const xlsxContent50 = await convertToXLSX(entries);
             const pos50FileName = fileName.replace(/\.(pdf|csv)$/i, '_POS50.xlsx');
             zip.file(pos50FileName, xlsxContent50);
 
-            const xlsxContent49 = convertToPOS49XLSX(entries);
+            const xlsxContent49 = await convertToPOS49XLSX(entries);
             const pos49FileName = fileName.replace(/\.(pdf|csv)$/i, '_POS49.xlsx');
             zip.file(pos49FileName, xlsxContent49);
         }
 
         const zipBlob = await zip.generateAsync({ type: 'blob' });
-        const link = document.createElement('a');
-        if (link.href) {
-            URL.revokeObjectURL(link.href);
-        }
-        link.href = URL.createObjectURL(zipBlob);
-
         const downloadFileName = filesToIncludeInZip.length === 1
             ? filesToIncludeInZip[0].replace(/\.(pdf|csv)$/i, '.zip')
             : "JournalEntries.zip";
-        link.download = downloadFileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
+        await downloadBlob(zipBlob, downloadFileName);
     }, [journalEntriesByFile, selectedFiles]);
 
-    const handleDownloadSingleSheet = useCallback(() => {
+    const handleDownloadSingleSheet = useCallback(async () => {
         if (Object.keys(journalEntriesByFile).length === 0) return;
 
-        const selectedFileNames = new Set(selectedFiles.map(f => f.name));
         const filesToProcess = Object.keys(journalEntriesByFile)
-            .filter(fileName => selectedFileNames.has(fileName) && journalEntriesByFile[fileName]?.length > 0)
+            .filter(fileName => journalEntriesByFile[fileName]?.length > 0)
             .sort();
 
         if (filesToProcess.length === 0) {
@@ -261,26 +238,28 @@ const POSEntryAutomation: React.FC = () => {
             const entriesForFile = journalEntriesByFile[fileName];
             if (!entriesForFile || entriesForFile.length === 0) continue;
 
-            const creditJournalNumber = journalNumberBase + 1;
-            const debitJournalNumber = journalNumberBase + 2;
+            let maxJournalNumInFile = 0;
 
             const modifiedEntries = entriesForFile.map(entry => {
                 const newEntry = { ...entry };
-                if (entry.journalName === 'CRNOTE') {
-                    newEntry.journalNumber = creditJournalNumber;
-                } else if (entry.journalName === 'STVINV') {
-                    newEntry.journalNumber = debitJournalNumber;
+                const currentNum = Number(entry.journalNumber) || 1;
+                newEntry.journalNumber = journalNumberBase + currentNum;
+                
+                if (currentNum > maxJournalNumInFile) {
+                    maxJournalNumInFile = currentNum;
                 }
                 return newEntry;
             });
 
             consolidatedEntries.push(...modifiedEntries);
-            journalNumberBase += 2;
+            journalNumberBase += maxJournalNumInFile;
         }
 
         consolidatedEntries.sort((a, b) => {
-            if (a.journalNumber !== b.journalNumber) {
-                return a.journalNumber - b.journalNumber;
+            const numA = Number(a.journalNumber) || 0;
+            const numB = Number(b.journalNumber) || 0;
+            if (numA !== numB) {
+                return numA - numB;
             }
             const dateA = new Date(a.postingDate.split('-').reverse().join('-')).getTime();
             const dateB = new Date(b.postingDate.split('-').reverse().join('-')).getTime();
@@ -310,34 +289,24 @@ const POSEntryAutomation: React.FC = () => {
         }
 
         try {
-            const xlsxContent = convertToXLSX(finalEntries);
+            const xlsxContent = await convertToXLSX(finalEntries);
             const blob = new Blob([xlsxContent], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
-            const link = document.createElement('a');
-            if (link.href) {
-                URL.revokeObjectURL(link.href);
-            }
-            link.href = URL.createObjectURL(blob);
-
             const downloadFileName = filesToProcess.length === 1
-                ? filesToProcess[0].replace(/\.(pdf|csv)$/i, '.xlsx')
-                : "Consolidated_Journal_Entries.xlsx";
-            link.download = downloadFileName;
-
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+                ? "POS " + filesToProcess[0].replace(/\.(pdf|csv|xlsx)$/i, '.xlsx')
+                : "POS Consolidated_Journal_Entries.xlsx";
+            
+            await downloadBlob(blob, downloadFileName);
         } catch (err: any) {
             setErrors({ general: err.message || "An error occurred while creating the consolidated Excel file." });
         }
     }, [journalEntriesByFile, selectedFiles]);
 
-    const handleDownloadPOS49SingleSheet = useCallback(() => {
+    const handleDownloadPOS49SingleSheet = useCallback(async () => {
         if (Object.keys(journalEntriesByFile).length === 0) return;
 
-        const selectedFileNames = new Set(selectedFiles.map(f => f.name));
         const filesToProcess = Object.keys(journalEntriesByFile)
-            .filter(fileName => selectedFileNames.has(fileName) && journalEntriesByFile[fileName]?.length > 0)
+            .filter(fileName => journalEntriesByFile[fileName]?.length > 0)
             .sort();
 
         if (filesToProcess.length === 0) {
@@ -352,26 +321,28 @@ const POSEntryAutomation: React.FC = () => {
             const entriesForFile = journalEntriesByFile[fileName];
             if (!entriesForFile || entriesForFile.length === 0) continue;
 
-            const creditJournalNumber = journalNumberBase + 1;
-            const debitJournalNumber = journalNumberBase + 2;
+            let maxJournalNumInFile = 0;
 
             const modifiedEntries = entriesForFile.map(entry => {
                 const newEntry = { ...entry };
-                if (entry.journalName === 'CRNOTE') {
-                    newEntry.journalNumber = creditJournalNumber;
-                } else if (entry.journalName === 'STVINV') {
-                    newEntry.journalNumber = debitJournalNumber;
+                const currentNum = Number(entry.journalNumber) || 1;
+                newEntry.journalNumber = journalNumberBase + currentNum;
+                
+                if (currentNum > maxJournalNumInFile) {
+                    maxJournalNumInFile = currentNum;
                 }
                 return newEntry;
             });
 
             consolidatedEntries.push(...modifiedEntries);
-            journalNumberBase += 2;
+            journalNumberBase += maxJournalNumInFile;
         }
 
         consolidatedEntries.sort((a, b) => {
-            if (a.journalNumber !== b.journalNumber) {
-                return a.journalNumber - b.journalNumber;
+            const numA = Number(a.journalNumber) || 0;
+            const numB = Number(b.journalNumber) || 0;
+            if (numA !== numB) {
+                return numA - numB;
             }
             const dateA = new Date(a.postingDate.split('-').reverse().join('-')).getTime();
             const dateB = new Date(b.postingDate.split('-').reverse().join('-')).getTime();
@@ -401,14 +372,12 @@ const POSEntryAutomation: React.FC = () => {
         }
 
         try {
-            const xlsxContent = convertToPOS49XLSX(finalEntries);
+            const xlsxContent = await convertToPOS49XLSX(finalEntries);
             const blob = new Blob([xlsxContent], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 
+            const url = URL.createObjectURL(blob);
             const link = document.createElement('a');
-            if (link.href) {
-                URL.revokeObjectURL(link.href);
-            }
-            link.href = URL.createObjectURL(blob);
+            link.href = url;
 
             const downloadFileName = filesToProcess.length === 1
                 ? filesToProcess[0].replace(/\.(pdf|csv)$/i, '_POS49.xlsx')
@@ -417,7 +386,10 @@ const POSEntryAutomation: React.FC = () => {
 
             document.body.appendChild(link);
             link.click();
-            document.body.removeChild(link);
+            setTimeout(() => {
+                document.body.removeChild(link);
+                URL.revokeObjectURL(url);
+            }, 100);
         } catch (err: any) {
             setErrors({ general: err.message || "An error occurred while creating the POS 49 Excel file." });
         }

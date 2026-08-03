@@ -322,10 +322,6 @@ const AiStatusBadge: React.FC = memo(() => {
         setAiStatus('connected', 'Python Rules Engine');
         return;
       }
-      if (llmConfig.provider === 'gemini') {
-        setAiStatus('connected', 'Gemini (Vertex AI)');
-        return;
-      }
       if (llmConfig.provider === 'webllm') {
         setAiStatus('connected', llmConfig.webllmModelId.split('-').slice(0, 2).join(' '));
         return;

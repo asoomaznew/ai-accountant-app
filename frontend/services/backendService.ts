@@ -37,6 +37,26 @@ export const processStatementsWithBackend = async (files: File[]): Promise<Recor
   return res.json();
 };
 
+export async function getEndingBalanceFromText(text: string): Promise<any> {
+    throw new Error("Ending Balance Extraction requires LLM providers. Please switch to WebLLM or wait for a future backend update.");
+};
+
+export async function getAnswerFromText(context: any, question: string): Promise<{answer: string, pages: number[]}> {
+    throw new Error("QA features require LLM providers. Please switch to WebLLM or wait for a future backend update.");
+};
+
+export async function getAiName(filename: string, instructions?: string): Promise<string> {
+    return filename; // Dummy implementation
+}
+
+export async function getShortenedSuffix(suffix: string): Promise<string> {
+    return suffix; // Dummy implementation
+}
+
+export async function getMedicalStatementFilename(text: string): Promise<string | null> {
+    throw new Error("Medical statement renaming requires LLM providers.");
+}
+
 export const processMerchantWithBackend = async (file: File): Promise<any[]> => {
   const formData = new FormData();
   formData.append('files', file);

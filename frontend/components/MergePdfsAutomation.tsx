@@ -10,6 +10,7 @@ import {
   DownloadIcon,
 } from "./icons";
 import { PDFDocument } from "pdf-lib";
+import { downloadBlob } from '../utils/downloadHelper';
 import JSZip from "jszip";
 import { CLOVER_BANK_INFO, WARBA_BANK_INFO } from "../constants";
 
@@ -280,15 +281,7 @@ const MergePdfsAutomation: React.FC = () => {
     setIsMerging(true);
     try {
       const blob = await generateMergedPdfBlob(statements, reconciliations);
-      const url = URL.createObjectURL(blob);
-
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `Merged_Recon_Stmt_${account}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      await downloadBlob(blob, `Merged_Recon_Stmt_${account}.pdf`);
     } catch (err) {
       console.error("Failed to merge PDFs:", err);
       alert("Failed to merge PDFs. Please try again.");
@@ -315,13 +308,20 @@ const MergePdfsAutomation: React.FC = () => {
         setTimeout(() => {
           iframe.contentWindow?.focus();
           iframe.contentWindow?.print();
+          
+          // Cleanup after print dialog is opened
+          setTimeout(() => {
+            document.body.removeChild(iframe);
+            URL.revokeObjectURL(url);
+            setIsMerging(false);
+          }, 1000);
         }, 500);
       };
     } catch (err) {
       console.error("Failed to merge & print PDFs:", err);
       alert("Failed to merge & print PDFs. Please try again.");
+      setIsMerging(false);
     }
-    setIsMerging(false);
   };
 
   const downloadAllMergedPdfsZip = async () => {
@@ -336,15 +336,7 @@ const MergePdfsAutomation: React.FC = () => {
       }
       
       const zipBlob = await zip.generateAsync({ type: "blob" });
-      const url = URL.createObjectURL(zipBlob);
-      
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "Merged_Reconciliations.zip";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      await downloadBlob(zipBlob, "Merged_Reconciliations.zip");
     } catch (err) {
       console.error("Failed to zip PDFs:", err);
       alert("Failed to zip PDFs. Please try again.");

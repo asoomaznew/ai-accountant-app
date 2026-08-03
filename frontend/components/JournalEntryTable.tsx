@@ -33,9 +33,9 @@ const EditableCell = ({
 
 const JournalEntryTable: React.FC<JournalEntryTableProps> = ({ entries, headers, searchTerm, onSearchChange, onEntryEdit }) => {
     
-    const handleEdit = (index: number, field: keyof JournalEntry, value: string) => {
+    const handleEdit = (index: number, field: keyof JournalEntry, value: string | number) => {
         if (onEntryEdit) {
-            onEntryEdit(index, field, value);
+            onEntryEdit(index, field, value as string);
         }
     };
 
@@ -64,16 +64,16 @@ const JournalEntryTable: React.FC<JournalEntryTableProps> = ({ entries, headers,
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-dark-300">
-                        {entries.slice(0, 100).map((entry, index) => (
+                        {entries.slice(0, 1000).map((entry, index) => (
                             <tr key={index} className="hover:bg-dark-300">
                               <td className="px-2 py-1 min-w-[80px]">
-                                  <EditableCell value={entry.journalNumber} onChange={(v) => handleEdit(index, 'journalNumber', Number(v))} type="number" />
+                                  <EditableCell value={String(entry.journalNumber)} onChange={(v) => handleEdit(index, 'journalNumber', Number(v))} type="number" />
                               </td>
                               <td className="px-2 py-1 min-w-[100px]">
                                   <EditableCell value={entry.journalName} onChange={(v) => handleEdit(index, 'journalName', v)} />
                               </td>
                               <td className="px-2 py-1 min-w-[80px]">
-                                  <EditableCell value={entry.lineNum} onChange={(v) => handleEdit(index, 'lineNum', Number(v))} type="number" />
+                                  <EditableCell value={String(entry.lineNum)} onChange={(v) => handleEdit(index, 'lineNum', Number(v))} type="number" />
                               </td>
                               <td className="px-2 py-1 min-w-[120px]">
                                   <EditableCell value={entry.postingDate} onChange={(v) => handleEdit(index, 'postingDate', v)} />
@@ -88,16 +88,16 @@ const JournalEntryTable: React.FC<JournalEntryTableProps> = ({ entries, headers,
                                   <EditableCell value={entry.description} onChange={(v) => handleEdit(index, 'description', v)} className="w-full" />
                               </td>
                               <td className="px-2 py-1 min-w-[100px]">
-                                  <EditableCell value={entry.debitAmount} onChange={(v) => handleEdit(index, 'debitAmount', Number(v))} type="number" />
+                                  <EditableCell value={String(entry.debitAmount)} onChange={(v) => handleEdit(index, 'debitAmount', Number(v))} type="number" />
                               </td>
                               <td className="px-2 py-1 min-w-[100px]">
-                                  <EditableCell value={entry.creditAmount} onChange={(v) => handleEdit(index, 'creditAmount', Number(v))} type="number" />
+                                  <EditableCell value={String(entry.creditAmount)} onChange={(v) => handleEdit(index, 'creditAmount', Number(v))} type="number" />
                               </td>
                               <td className="px-2 py-1 min-w-[80px]">
                                   <EditableCell value={entry.currencyCode} onChange={(v) => handleEdit(index, 'currencyCode', v)} />
                               </td>
                               <td className="px-2 py-1 min-w-[80px]">
-                                  <EditableCell value={entry.exchangeRate} onChange={(v) => handleEdit(index, 'exchangeRate', Number(v))} type="number" />
+                                  <EditableCell value={String(entry.exchangeRate)} onChange={(v) => handleEdit(index, 'exchangeRate', Number(v))} type="number" />
                               </td>
                               <td className="px-2 py-1 min-w-[120px]">
                                   <EditableCell value={entry.offsetAccountType} onChange={(v) => handleEdit(index, 'offsetAccountType', v)} />
@@ -130,7 +130,7 @@ const JournalEntryTable: React.FC<JournalEntryTableProps> = ({ entries, headers,
                                   <EditableCell value={entry.paymentReference} onChange={(v) => handleEdit(index, 'paymentReference', v)} />
                               </td>
                               <td className="px-2 py-1 min-w-[100px]">
-                                  <EditableCell value={entry.numberOfVoucher} onChange={(v) => handleEdit(index, 'numberOfVoucher', Number(v))} type="number" />
+                                  <EditableCell value={String(entry.numberOfVoucher)} onChange={(v) => handleEdit(index, 'numberOfVoucher', Number(v))} type="number" />
                               </td>
                               <td className="px-2 py-1 min-w-[100px]">
                                   <EditableCell value={entry.activities} onChange={(v) => handleEdit(index, 'activities', v)} />
@@ -152,7 +152,7 @@ const JournalEntryTable: React.FC<JournalEntryTableProps> = ({ entries, headers,
                     </tbody>
                 </table>
             </div>
-            {entries.length > 100 && <p className="text-xs text-slate-500 text-center pt-2">Showing first 100 of {entries.length} matching entries...</p>}
+            {entries.length > 1000 && <p className="text-xs text-slate-500 text-center pt-2">Showing first 1000 of {entries.length} matching entries...</p>}
             {entries.length === 0 && searchTerm && (
                 <p className="text-center text-slate-400 py-4">No entries match your search.</p>
             )}

@@ -3,6 +3,7 @@ import { processFiles, ProcessingResult } from '../services/smartMergeService';
 import { CheckCircle2, FileArchive, Printer, Upload, FileText, Mail, ChevronDown, ChevronUp } from 'lucide-react';
 import JSZip from 'jszip';
 import * as pdfjsLib from 'pdfjs-dist';
+import { downloadBlob } from '../utils/downloadHelper';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `https://esm.sh/pdfjs-dist@4.5.136/build/pdf.worker.mjs`;
 
@@ -208,7 +209,7 @@ export default function SmartMergeAutomation() {
     setError(null);
 
     try {
-      const processedResults = await processFiles(mainPdf, bankStatements, csvFiles, emailPdfs, (msg) => {
+      const processedResults = await processFiles(mainPdf, bankStatements, csvFiles, emailPdfs, (msg: string) => {
         setStatus(msg);
       });
       setResults(processedResults);
@@ -268,19 +269,10 @@ export default function SmartMergeAutomation() {
         }
       });
 
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = "Matched_Journal_Batches.zip";
-      document.body.appendChild(a);
-      a.click();
-      
       setStatus("Download initiated.");
       
-      setTimeout(() => {
-        URL.revokeObjectURL(url);
-        if (document.body && document.body.contains(a)) document.body.removeChild(a);
-      }, 15000);
+      await downloadBlob(blob, "Matched_Journal_Batches.zip");
+      
       
     } catch (err) {
       console.error(err);
@@ -293,26 +285,28 @@ export default function SmartMergeAutomation() {
     results.forEach((res, idx) => {
       if (selectedIds.has(idx)) {
         const url = URL.createObjectURL(res.blob);
-        const win = window.open(url, '_blank');
-        if (win) {
-          setTimeout(() => URL.revokeObjectURL(url), 5000);
-        }
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.src = url;
+        document.body.appendChild(iframe);
+        
+        iframe.onload = () => {
+          setTimeout(() => {
+            iframe.contentWindow?.focus();
+            iframe.contentWindow?.print();
+            
+            setTimeout(() => {
+              document.body.removeChild(iframe);
+              URL.revokeObjectURL(url);
+            }, 1000);
+          }, 500);
+        };
       }
     });
   };
 
-  const downloadSingle = (res: ProcessingResult) => {
-    const url = URL.createObjectURL(res.blob);
-    const a = document.createElement('a');
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.href = url;
-    a.download = res.fileName;
-    a.click();
-    setTimeout(() => {
-      URL.revokeObjectURL(url);
-      if (document.body.contains(a)) document.body.removeChild(a);
-    }, 1000);
+  const downloadSingle = async (res: ProcessingResult) => {
+    await downloadBlob(res.blob, res.fileName);
   };
 
   return (

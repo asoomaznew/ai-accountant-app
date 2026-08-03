@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from "react";
 import JSZip from "jszip";
 import PQueue from "p-queue";
+import { downloadBlob } from '../utils/downloadHelper';
 import FileUploader from "./FileUploader";
 import SettingsPanel from "./SettingsPanel";
 import ActionButtons from "./ActionButtons";
@@ -134,12 +135,7 @@ const RenamerComponent: React.FC = () => {
       }
 
       const content = await zip.generateAsync({ type: "blob" });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(content);
-      link.download = `renamed_files_${Date.now()}.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      await downloadBlob(content, `renamed_files_${Date.now()}.zip`);
       addLog("ZIP file download initiated.", "success");
     } catch (error) {
       const errorMessage =

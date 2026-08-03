@@ -49,12 +49,6 @@ interface Tab { id: LLMProvider; label: string; icon: React.ReactNode; sub: stri
 
 const TABS: readonly Tab[] = [
   {
-    id: 'gemini',
-    label: 'Google Gemini',
-    sub: 'Cloud · Fastest',
-    icon: <Sparkles size={18} />,
-  },
-  {
     id: 'ollama',
     label: 'Ollama',
     sub: 'Local · Your models',
@@ -80,7 +74,7 @@ const TABS: readonly Tab[] = [
 
 const AISettings: React.FC = () => {
   const setLLMConfig = useAppStore((state) => state.setLLMConfig);
-  const [provider, setProvider]           = useState<LLMProvider>('gemini');
+  const [provider, setProvider]           = useState<LLMProvider>('none');
   const [ollamaUrl, setOllamaUrl]         = useState('http://localhost:11434');
   const [ollamaStatus, setOllamaStatus]   = useState<OllamaStatus>('unknown');
   const [ollamaModels, setOllamaModels]   = useState<OllamaModel[]>([]);
@@ -107,7 +101,6 @@ const AISettings: React.FC = () => {
       setIsWebLLMInitialized(isWebLLMReady() && getActiveWebLLMModel() === cfg.webllmModelId);
     }
     if (cfg.provider === 'ollama') handleCheckOllama(cfg.ollamaBaseUrl, cfg.ollamaModel);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Sync initialization state when selected model changes
@@ -171,7 +164,6 @@ const AISettings: React.FC = () => {
   const selectedWebLlmOption = WEBLLM_MODELS.find(m => m.id === selectedWebLlmModel) || WEBLLM_MODELS[0];
 
   const canSave =
-    provider === 'gemini' ||
     provider === 'webllm' ||
     provider === 'none' ||
     (provider === 'ollama' && ollamaStatus === 'online' && !!selectedModel);
@@ -227,40 +219,6 @@ const AISettings: React.FC = () => {
 
       {/* Panel */}
       <AnimatePresence mode="wait">
-
-        {/* ─── Gemini Panel ─── */}
-        {provider === 'gemini' && (
-          <motion.div
-            key="gemini"
-            initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
-            className="rounded-2xl bg-[#13141a] border border-white/[0.07] p-5 space-y-4"
-          >
-            <div className="flex items-start gap-3">
-              <Sparkles size={16} className="text-blue-400 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-[13px] font-semibold text-white">Google Gemini — Active</p>
-                <p className="text-[12px] text-slate-500 mt-1 leading-relaxed">
-                  Uses your Gemini API key. Automatically switches between Flash → Flash Lite
-                  → Latest on errors. Fastest and most accurate option.
-                </p>
-              </div>
-            </div>
-            <div className="grid grid-cols-3 gap-2 pt-1">
-              {[
-                { icon: <Zap size={13} />,      label: 'Fastest',         sub: 'Sub-second' },
-                { icon: <Sparkles size={13} />,  label: 'Best accuracy',   sub: 'Cloud model' },
-                { icon: <Cloud size={13} />,     label: 'Needs internet',  sub: 'API key required' },
-              ].map(({ icon, label, sub }) => (
-                <div key={label} className="flex flex-col items-center gap-1.5 p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] text-center">
-                  <span className="text-slate-500">{icon}</span>
-                  <span className="text-[11px] font-medium text-slate-300">{label}</span>
-                  <span className="text-[10px] text-slate-600">{sub}</span>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        )}
 
         {/* ─── Ollama Panel ─── */}
         {provider === 'ollama' && (

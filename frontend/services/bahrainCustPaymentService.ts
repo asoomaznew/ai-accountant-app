@@ -5,6 +5,11 @@ import { BAHRAIN_CUSTOMER_MASTER } from '../constants';
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
+// The desktop app serves the frontend and API from the same backend, while
+// Vite development uses a separate origin. Keep this aligned with the other
+// backend clients so both modes reach the FastAPI server.
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL ?? 'http://127.0.0.1:8000';
+
 export interface ExtractedRow {
   pdate: string;
   unit: string;
@@ -73,15 +78,15 @@ Instructions: Identify the Customer Name and the Unit number/ID. Match the Unit 
   ]
 }`;
 
-      const response = await fetch('/api/bahrain/process', {
+      const formData = new FormData();
+      formData.append('files', file);
+
+      const response = await fetch(`${BACKEND_URL}/api/bahrain/process`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('gemini_api_key') || 'local_bypass_token'}`,
-          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${import.meta.env.VITE_BACKEND_TOKEN ?? (import.meta.env.DEV ? 'local_bypass_token' : '')}`,
         },
-        body: JSON.stringify({
-          files: [file],
-        }),
+        body: formData,
       });
 
       if (!response.ok) {

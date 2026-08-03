@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx';
 import { CLOVER_BANK_INFO, VENDOR_OFFSET_ACCOUNTS, WARBA_BANK_INFO, WARBA_VENDOR_OFFSET_ACCOUNTS } from '../constants';
 import { RawAccountingRow } from '../types';
 
@@ -38,10 +37,11 @@ export function formatDate(val: any): string {
     }
     if (typeof val === 'number') {
         try {
-            const date = XLSX.SSF.parse_date_code(val);
-            const day = String(date.d).padStart(2, '0');
-            const month = String(date.m).padStart(2, '0');
-            const year = date.y;
+            // Convert Excel serial date to JS Date (1900 date system)
+            const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+            const day = String(date.getUTCDate()).padStart(2, '0');
+            const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+            const year = date.getUTCFullYear();
             return `${day}-${month}-${year}`;
         } catch (e) {
             return val.toString();

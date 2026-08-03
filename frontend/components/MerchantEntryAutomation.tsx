@@ -1,8 +1,7 @@
-// Added React import to resolve 'Cannot find namespace React' errors and fixed FileList to Array conversion typing.
 import React, { useState, useCallback, useRef, useMemo } from 'react';
-import { JournalEntry } from '../types';
-import { extractTransactionsFromText } from '../services/merchantGeminiService';
-import { generateJournalEntries, convertToXLSX } from '../services/journalService';
+import JSZip from 'jszip';
+import { convertToXLSX } from '../services/journalService';
+import { downloadBlob } from '../utils/downloadHelper';
 import { extractWithBackend, processMerchantWithBackend } from '../services/backendService';
 import { getLLMConfig } from '../services/localLlmService';
 import { SpinnerIcon, ProcessIcon, DownloadIcon, XIcon, CheckCircleIcon, XCircleIcon, ClockIcon } from './icons';
@@ -12,6 +11,7 @@ import JSZip from 'jszip';
 import JournalEntryTable from './JournalEntryTable';
 import { extractTextFromExcel } from '../services/excelService';
 import PQueue from 'p-queue';
+import { JournalEntry } from '../types';
 
 import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.mjs?url';
 pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker;
@@ -166,30 +166,11 @@ const MerchantEntryAutomation: React.FC = () => {
         const tasks = selectedFiles.map(file => async () => {
             setFileStatuses(prev => ({ ...prev, [file.name]: 'processing' }));
             try {
-                const cfg = getLLMConfig();
-
-                if (cfg.provider === 'none') {
-                    // ── Python Rules Engine: send to backend ──────────────
-                    const journalEntries = await processMerchantWithBackend(file);
-                    resultsMap[file.name] = journalEntries as any;
-                    setJournalEntriesByFile(prev => ({ ...prev, [file.name]: journalEntries as any }));
-                    setFileStatuses(prev => ({ ...prev, [file.name]: 'done' }));
-                } else {
-                    // ── Browser AI: Gemini / Ollama / WebLLM ──────────────
-                    const rawText = await extractTextFromFile(file);
-                    if (!rawText.trim()) {
-                        throw new Error("Could not extract any text from the file.");
-                    }
-                    const extractedData = await extractTransactionsFromText(rawText);
-                    const journalEntries = generateJournalEntries(extractedData, undefined, undefined, offsetAccounts, file.name);
-
-                    resultsMap[file.name] = journalEntries;
-                    setJournalEntriesByFile(prev => ({
-                        ...prev,
-                        [file.name]: journalEntries
-                    }));
-                    setFileStatuses(prev => ({ ...prev, [file.name]: 'done' }));
-                }
+                // ── Python Rules Engine: send to backend ──────────────
+                const journalEntries = await processMerchantWithBackend(file);
+                resultsMap[file.name] = journalEntries as any;
+                setJournalEntriesByFile(prev => ({ ...prev, [file.name]: journalEntries as any }));
+                setFileStatuses(prev => ({ ...prev, [file.name]: 'done' }));
             } catch (err: any) {
                  setErrors(prev => ({
                     ...prev,
@@ -225,34 +206,23 @@ const MerchantEntryAutomation: React.FC = () => {
         }
         
         for (const fileName of filesToIncludeInZip) {
-            const xlsxContent = convertToXLSX(journalEntriesByFile[fileName]);
+            const xlsxContent = await convertToXLSX(journalEntriesByFile[fileName]);
             const newFileName = fileName.replace(/\.(pdf|csv)$/i, '.xlsx');
             zip.file(newFileName, xlsxContent);
         }
         
         const zipBlob = await zip.generateAsync({ type: 'blob' });
-        const link = document.createElement('a');
-        if (link.href) {
-            URL.revokeObjectURL(link.href);
-        }
-        link.href = URL.createObjectURL(zipBlob);
-
         const downloadFileName = filesToIncludeInZip.length === 1 
             ? filesToIncludeInZip[0].replace(/\.(pdf|csv)$/i, '.zip') 
             : "JournalEntries.zip";
-        link.download = downloadFileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-
+        await downloadBlob(zipBlob, downloadFileName);
     }, [journalEntriesByFile, selectedFiles]);
 
-    const handleDownloadSingleSheet = useCallback(() => {
+    const handleDownloadSingleSheet = useCallback(async () => {
         if (Object.keys(journalEntriesByFile).length === 0) return;
     
-        const selectedFileNames = new Set(selectedFiles.map(f => f.name));
         const filesToProcess = Object.keys(journalEntriesByFile)
-            .filter(fileName => selectedFileNames.has(fileName) && journalEntriesByFile[fileName]?.length > 0)
+            .filter(fileName => journalEntriesByFile[fileName]?.length > 0)
             .sort();
 
         if (filesToProcess.length === 0) {
@@ -276,6 +246,8 @@ const MerchantEntryAutomation: React.FC = () => {
                     newEntry.journalNumber = creditJournalNumber;
                 } else if (entry.journalName === 'STVINV') {
                     newEntry.journalNumber = debitJournalNumber;
+                } else {
+                    newEntry.journalNumber = newEntry.journalNumber || creditJournalNumber;
                 }
                 return newEntry;
             });
@@ -285,8 +257,10 @@ const MerchantEntryAutomation: React.FC = () => {
         }
 
         consolidatedEntries.sort((a, b) => {
-            if (a.journalNumber !== b.journalNumber) {
-                return a.journalNumber - b.journalNumber;
+            const numA = Number(a.journalNumber) || 0;
+            const numB = Number(b.journalNumber) || 0;
+            if (numA !== numB) {
+                return numA - numB;
             }
             const dateA = new Date(a.postingDate.split('-').reverse().join('-')).getTime();
             const dateB = new Date(b.postingDate.split('-').reverse().join('-')).getTime();
@@ -306,7 +280,7 @@ const MerchantEntryAutomation: React.FC = () => {
                 lineNumCounter++;
             }
 
-            let invoiceNo = entry.invoiceNo;
+            let invoiceNo = entry.invoiceNo || "";
             if (seenInvoices.has(invoiceNo)) {
                 let suffix = 1;
                 let newInvoiceNo = invoiceNo;
@@ -333,23 +307,14 @@ const MerchantEntryAutomation: React.FC = () => {
         }
     
         try {
-            const xlsxContent = convertToXLSX(finalEntries);
+            const xlsxContent = await convertToXLSX(finalEntries);
             const blob = new Blob([xlsxContent], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            
-            const link = document.createElement('a');
-            if (link.href) {
-                URL.revokeObjectURL(link.href);
-            }
-            link.href = URL.createObjectURL(blob);
             
             const downloadFileName = filesToProcess.length === 1
                 ? "Google " + filesToProcess[0].replace(/\.(pdf|csv|xlsx)$/i, '.xlsx')
                 : "Google Consolidated_Journal_Entries.xlsx";
-            link.download = downloadFileName;
-
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            
+            await downloadBlob(blob, downloadFileName);
         } catch (err: any) {
             setErrors({ general: err.message || "An error occurred while creating the consolidated Excel file." });
         }

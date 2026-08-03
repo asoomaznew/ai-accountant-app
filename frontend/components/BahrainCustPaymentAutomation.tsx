@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Upload, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
 import { processBahrainFiles, ProcessingResult } from '../services/bahrainCustPaymentService';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
+import { downloadBlob } from '../utils/downloadHelper';
 
 export default function BahrainCustPaymentAutomation() {
   const [emailPdfs, setEmailPdfs] = useState<File[]>([]);
@@ -31,7 +32,7 @@ export default function BahrainCustPaymentAutomation() {
       setResults(output);
       
       if (output.length > 0) {
-        generateExcel(output);
+        await generateExcel(output);
       }
     } catch (err: any) {
       console.error(err);
@@ -42,7 +43,7 @@ export default function BahrainCustPaymentAutomation() {
     }
   };
 
-  const generateExcel = (resultsData: ProcessingResult[]) => {
+  const generateExcel = async (resultsData: ProcessingResult[]) => {
     try {
       const exportData: any[] = [];
       let jnum = 1;
@@ -77,7 +78,7 @@ export default function BahrainCustPaymentAutomation() {
             "Column22": lnum.toString(),
             "Column23": "",
             "Column24": "06",
-            "Column25": "113",
+            "Column25": "122",
             "Column26": "107",
             "Column27": "BHW1",
             "Column28": row.unit
@@ -87,11 +88,18 @@ export default function BahrainCustPaymentAutomation() {
         jnum++;
       }
       
-      const ws = XLSX.utils.json_to_sheet(exportData, { skipHeader: true });
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "Export");
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Export");
       
-      XLSX.writeFile(wb, "Bahrain_CustPayment_Export.xlsx");
+      exportData.forEach(rowObj => {
+         // Since json_to_sheet with skipHeader just maps values, we take Object.values
+         worksheet.addRow(Object.values(rowObj));
+      });
+      
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      
+      await downloadBlob(blob, "Bahrain_CustPayment_Export.xlsx");
     } catch (err) {
       console.error("Excel generation error:", err);
       setError("Failed to generate Excel file.");
@@ -165,7 +173,7 @@ export default function BahrainCustPaymentAutomation() {
                 {res.success ? (
                   <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0" />
                 ) : (
-                  <AlertCircle className="w-5 h-5 text-red-400 shrink-0" title={res.error} />
+                  <AlertCircle className="w-5 h-5 text-red-400 shrink-0" aria-label={res.error} />
                 )}
               </div>
             ))}

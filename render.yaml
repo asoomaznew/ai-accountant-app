@@ -1,0 +1,28 @@
+# Render.com deployment config for the AI Accountant backend (FastAPI).
+# Connect this repo in the Render dashboard → "Blueprint" and Render builds
+# the web service below automatically.
+#
+# NOTE: The frontend is deployed separately on Vercel (see vercel.json).
+# Set the environment variables below in the Render dashboard (or here):
+#   CORS_ORIGINS = https://<your-vercel-app>.vercel.app
+#   (and any other backend env vars your app needs)
+
+services:
+  - type: web
+    name: ai-accountant-backend
+    runtime: python
+    plan: free
+    region: oregon            # pick the region closest to you
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/health
+    envVars:
+      - key: PORT
+        sync: false           # Render injects this automatically
+      - key: HOST
+        value: 0.0.0.0
+      - key: CORS_ORIGINS
+        sync: false           # set in dashboard to your Vercel URL
+      - key: PYTHON_VERSION
+        value: "3.11"

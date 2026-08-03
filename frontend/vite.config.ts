@@ -12,6 +12,14 @@ export default defineConfig(({ mode }) => {
         fs: {
           strict: false
         },
+        proxy: {
+          // During Vite dev, route /api/* to the FastAPI backend so that
+          // relative fetches (and CORS) work without a separate origin.
+          '/api': {
+            target: 'http://127.0.0.1:8000',
+            changeOrigin: true,
+          },
+        },
       },
       plugins: [react(), tailwindcss()],
 
@@ -26,10 +34,26 @@ export default defineConfig(({ mode }) => {
       },
       build: {
         target: 'esnext',
+        rollupOptions: {
+          output: {
+            // Keep the app shell lean. These libraries are shared by several
+            // lazy-loaded screens but do not need to delay the first render.
+            manualChunks(id) {
+              if (id.includes('node_modules/react/') || id.includes('node_modules/react-dom/')) {
+                return 'react-vendor';
+              }
+              if (id.includes('node_modules/framer-motion/')) {
+                return 'motion-vendor';
+              }
+              if (id.includes('node_modules/lucide-react/')) {
+                return 'icons-vendor';
+              }
+            },
+          },
+        },
       },
       worker: {
         format: 'es', // Required for Comlink + WebLLM in workers
       }
     };
 });
-
