@@ -3,9 +3,9 @@
 # the web service below automatically.
 #
 # NOTE: The frontend is deployed separately on Vercel (see vercel.json).
-# Set the environment variables below in the Render dashboard (or here):
-#   CORS_ORIGINS = https://<your-vercel-app>.vercel.app
-#   (and any other backend env vars your app needs)
+# CORS now auto-allows any *.vercel.app origin (see backend/main.py regex),
+# so you do NOT need to set CORS_ORIGINS manually — but you still can to
+# pin a specific domain. PYTHON_VERSION is pinned to 3.11 for numpy compat.
 
 services:
   - type: web
