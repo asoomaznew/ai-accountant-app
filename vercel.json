@@ -1,12 +1,14 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "npm run build",
+  "installCommand": "cd frontend && npm install",
+  "buildCommand": "cd frontend && npm run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "build": {
     "env": {
+      "NODE_OPTIONS": "--max-old-space-size=2048",
       "VITE_BACKEND_URL": "https://ai-accountant-backend.onrender.com"
     }
   }
