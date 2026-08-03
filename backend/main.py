@@ -139,9 +139,15 @@ app = FastAPI(title="AI Accountant v2 Backend", version="2.0.0")
 
 # Allow CORS only for the configured frontend origin(s). Never use a wildcard
 # together with allow_credentials=True — that is an invalid (and unsafe) combo.
+# CORS: allow explicit origins from CORS_ORIGINS (comma-separated) AND any
+# Vercel preview/production domain (*.vercel.app) so a new Vercel project
+# from this repo works without editing code. allow_credentials stays True,
+# so we use a regex (not a "*" wildcard) which is the valid/safe combo.
+CORS_REGEX = r"https://([a-z0-9-]+\.)*vercel\.app$"
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
+    allow_origin_regex=CORS_REGEX,
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type"],
