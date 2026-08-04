@@ -26,3 +26,7 @@ services:
         sync: false           # set in dashboard to your Vercel URL
       - key: PYTHON_VERSION
         value: "3.11"
+      - key: DISABLE_AUTH
+        value: "true"         # single-user personal deployment: skip Google token check
+      - key: ENVIRONMENT
+        value: "production"
