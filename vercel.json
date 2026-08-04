@@ -9,7 +9,7 @@
   "build": {
     "env": {
       "NODE_OPTIONS": "--max-old-space-size=2048",
-      "VITE_BACKEND_URL": "https://ai-accountant-backend.onrender.com"
+      "VITE_BACKEND_URL": "https://ai-accountant-backend-48gz.onrender.com"
     }
   }
 }
