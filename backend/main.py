@@ -315,7 +315,7 @@ async def get_models(user_email: str = Depends(verify_google_token)):
         pass
     return models
 
-# NOTE: /api/gemini/generate was removed. The app is local-only (no cloud).
+# NOTE: The app is local-only (no cloud).
 # Use /api/chat or the deterministic Python pipeline instead.
 
 @app.post("/api/chat")
@@ -336,7 +336,7 @@ async def chat_endpoint(req: ChatRequest, user_email: str = Depends(verify_googl
         )
         return {"response": response}
     except Exception as e:
-        # No model available (Gemini removed; Ollama not running) — return a
+        # No model available (Ollama not running) — return a
         # clean, user-facing message instead of a 500 error so the frontend
         # can display it gracefully.
         err = str(e)

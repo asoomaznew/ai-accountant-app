@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // services/localLlmService.ts
-// AI provider gateway: Gemini Cloud | Ollama Local | WebLLM (WebGPU)
+// AI provider gateway: Ollama Local | WebLLM (WebGPU) | Python-only (rules)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { wrap, proxy, type Remote } from 'comlink';
@@ -131,9 +131,9 @@ export const getLLMConfig = (): LLMConfig => {
       ? DEFAULTS.webllmModelId
       : savedWebLlmId;
     const savedProvider = localStorage.getItem('llm_provider') ?? DEFAULTS.provider;
-    // Gemini/Vertex was removed from the backend; treat any legacy 'gemini'
-    // setting as 'none' so the deterministic pipeline is used.
-    const provider = (savedProvider === 'gemini' ? 'none' : savedProvider) as LLMProvider;
+    // Ensure the saved provider is valid; otherwise fallback to the default.
+    const validProviders = ['ollama', 'webllm', 'none'];
+    const provider = (validProviders.includes(savedProvider) ? savedProvider : DEFAULTS.provider) as LLMProvider;
     return {
       provider,
       ollamaBaseUrl: localStorage.getItem('llm_ollama_url') ?? DEFAULTS.ollamaBaseUrl,
@@ -364,9 +364,9 @@ export const disposeWebLLM = async (): Promise<void> => {
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Called by geminiService.ts when provider !== 'gemini'.
+ * Main LLM gateway called by all service files.
  * Returns LLMResult for Ollama or WebLLM.
- * Returns null when provider is 'gemini' (caller handles it).
+ * Returns null when provider is 'none' (deterministic pipeline handles it).
  */
 export const callLocalLLM = async (
   prompt: string,

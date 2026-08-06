@@ -149,7 +149,7 @@ const PdfKeywordSearchComponent: React.FC = () => {
     setIsChatting(true);
     setChatResults([]);
     stopSignal.current = false;
-    setStatusText(`Analyzing ${files.length} file(s) with Gemini...`);
+    setStatusText(`Analyzing ${files.length} file(s) with AI...`);
 
     const allResults: QaResult[] = [];
 
@@ -160,7 +160,7 @@ const PdfKeywordSearchComponent: React.FC = () => {
       }
       const file = files[i];
       setStatusText(
-        `Asking Gemini about file ${i + 1} of ${files.length}: ${file.name}...`,
+        `Analyzing file ${i + 1} of ${files.length}: ${file.name}...`,
       );
 
       try {
@@ -434,7 +434,7 @@ const PdfKeywordSearchComponent: React.FC = () => {
                 className="w-full flex items-center justify-center px-4 py-3 border border-transparent text-base font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-200 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-white bg-indigo-600 hover:bg-indigo-700 focus:ring-indigo-500"
               >
                 <SparklesIcon className="-ml-1 mr-2 h-5 w-5" />
-                Ask Gemini
+                Ask AI
               </button>
             )}
             <button

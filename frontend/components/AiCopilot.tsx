@@ -90,7 +90,7 @@ export default function AiCopilot() {
         list.push("How are deposits mapped in Warba?");
         break;
       case "ai_settings":
-        list.push("Explain Ollama vs Gemini settings");
+        list.push("Explain Ollama vs WebLLM settings");
         list.push("How can I download local LLM models?");
         break;
       default:

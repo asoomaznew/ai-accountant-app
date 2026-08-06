@@ -74,7 +74,7 @@ class AIParsingAgent:
       - OPTIONAL: if a local Ollama instance is reachable, we may use it to
                   *enhance* the parsed result. If Ollama is unavailable or errors,
                   we silently keep the deterministic result.
-      - NO cloud calls (Gemini/Vertex) are ever made from this agent.
+      - NO cloud calls are ever made from this agent.
     """
 
     async def parse_transactions(self, raw_text: str, account_name: str, account_number: str, file_path: str = "") -> Dict[str, Any]:

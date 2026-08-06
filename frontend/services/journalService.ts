@@ -24,7 +24,7 @@ function normalizeAcc(acc: string | undefined): string {
 
 /**
  * Try to infer the bank account number from transaction descriptions, 
- * overall account name, or filename (for cases where Gemini returned "N/A" or Terminal ID).
+ * overall account name, or filename (for cases where the AI returned "N/A" or Terminal ID).
  *
  * Looks for clinic name keywords (e.g. "Aram", "Joya", "Iris", "Med Marine") and
  * matches against CLOVER_BANK_INFO.accountName. Returns the FIRST matching

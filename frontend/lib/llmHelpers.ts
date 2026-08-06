@@ -3,9 +3,8 @@
 // Shared retry / timeout / JSON-parsing utilities for all LLM-facing services.
 //
 // Why this file exists:
-//   - geminiService.ts, merchantGeminiService.ts, warbaGeminiService.ts,
-//     copilotService.ts, balanceGeminiService.ts all make network calls to
-//     Gemini / Ollama / WebLLM.
+//   - journalService.ts, warbaJournalService.ts, copilotService.ts, and the
+//     other service files all make LLM calls to Ollama / WebLLM.
 //   - They were duplicating `try { JSON.parse(raw) } catch { ... }`,
 //     hand-rolled retry loops, and ad-hoc `Promise.race` timeouts.
 //   - This module centralises those primitives so that all services share

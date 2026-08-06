@@ -7,7 +7,6 @@ import { getLLMConfig } from '../services/localLlmService';
 import { SpinnerIcon, ProcessIcon, DownloadIcon, XIcon, CheckCircleIcon, XCircleIcon, ClockIcon } from './icons';
 import { OUTPUT_HEADER } from '../constants';
 import * as pdfjs from 'pdfjs-dist';
-import JSZip from 'jszip';
 import JournalEntryTable from './JournalEntryTable';
 import { extractTextFromExcel } from '../services/excelService';
 import PQueue from 'p-queue';

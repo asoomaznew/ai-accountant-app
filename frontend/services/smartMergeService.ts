@@ -390,15 +390,18 @@ export async function processFiles(
     }
 
     if (last4) {
-      matchedBsFile = bankStatements.find(bs => bs.name.toLowerCase().includes(last4.toLowerCase()));
+      matchedBsFile = bankStatements.find(bs => 
+        bs.name.toLowerCase().replace(/[^a-z0-9]/g, '').includes(last4.toLowerCase())
+      );
       if (matchedBsFile) {
         console.log(`Matched statement: ${matchedBsFile.name} for last4: ${last4}`);
       }
     }
     
     if (!matchedBsFile && data.descId) {
+      const normDesc = data.descId.toLowerCase().replace(/[^a-z0-9]/g, '');
       matchedBsFile = bankStatements.find(bs => 
-        bs.name.toLowerCase().includes(data.descId.toLowerCase())
+        bs.name.toLowerCase().replace(/[^a-z0-9]/g, '').includes(normDesc)
       );
     }
 
@@ -427,6 +430,29 @@ export async function processFiles(
       });
     }
 
+    // Match Email PDFs
+    let matchedEmailFiles: File[] = [];
+    if (emailPdfs.length > 0) {
+      matchedEmailFiles = emailPdfs.filter(em => {
+        const emLower = em.name.toLowerCase();
+        // match by last4 or descId in filename
+        if (last4 && emLower.includes(last4.toLowerCase())) return true;
+        if (data.descId && emLower.includes(data.descId.toLowerCase())) return true;
+        
+        // Match by KNET reference from CSV
+        if (matchedRows.length > 0) {
+          for (const row of matchedRows) {
+            const knetKey = Object.keys(row).find(k => /KNET\s*Reference|Reference|Ref|Trace|Auth/i.test(k)) || 'KNET Reference';
+            const rawKnetRef = String(row[knetKey] || '').trim();
+            if (rawKnetRef && rawKnetRef.length > 3 && emLower.includes(rawKnetRef.toLowerCase())) {
+              return true;
+            }
+          }
+        }
+        return false;
+      });
+    }
+
     // Copy original pages
     const copiedMainPages = await outputPdf.copyPages(srcPdf, data.pages);
     copiedMainPages.forEach(p => outputPdf.addPage(p));
@@ -438,6 +464,14 @@ export async function processFiles(
       const copiedBsPages = await outputPdf.copyPages(bsPdf, bsPdf.getPageIndices());
       copiedBsPages.forEach(p => outputPdf.addPage(p));
       matched = true;
+    }
+
+    // Append matched email PDFs
+    for (const emFile of matchedEmailFiles) {
+      const emBuffer = await emFile.arrayBuffer();
+      const emPdf = await PDFDocument.load(emBuffer);
+      const copiedEmPages = await outputPdf.copyPages(emPdf, emPdf.getPageIndices());
+      copiedEmPages.forEach(p => outputPdf.addPage(p));
     }
 
     // append matched CSV transaction data pages to the PDF
@@ -454,8 +488,8 @@ export async function processFiles(
       blob: new Blob([pdfBytes], { type: 'application/pdf' }),
       matched,
       matchedCsvRows: matchedRows.length,
-      matchedEmailsCount: 0,
-      matchedEmailNames: []
+      matchedEmailsCount: matchedEmailFiles.length,
+      matchedEmailNames: matchedEmailFiles.map(f => f.name)
     });
   }
 

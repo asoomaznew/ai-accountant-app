@@ -1,1 +1,1 @@
-{"name":"Remix: Remix Entry Automation","description":"Automate journal entries (POS 50/49, Merchant, Warba), extract ending balances, merge PDFs, and intelligently rename files from bank statements.","requestFramePermissions":[],"prompt":"","majorCapabilities":["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]}
+{"name":"Remix: Remix Entry Automation","description":"Automate journal entries (POS 50/49, Merchant, Warba), extract ending balances, merge PDFs, and intelligently rename files from bank statements.","requestFramePermissions":[],"prompt":"","majorCapabilities":[]}

@@ -53,7 +53,7 @@ const SettingsPanel: React.FC<SettingsPanelProps> = ({
       <div className="space-y-3">
         <RadioOption
           value={RenameMethod.AI}
-          label="AI-Powered (Gemini)"
+          label="AI-Powered"
           description="Use AI to find the best filename."
         />
         <RadioOption

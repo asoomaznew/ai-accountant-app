@@ -2,7 +2,7 @@
 # modules/llm_gateway.py
 # Local-only AI Provider Gateway: Ollama (optional) only.
 #
-# Per project policy: NO cloud providers (Gemini / Vertex AI) are used.
+# Per project policy: NO cloud providers are used.
 # The deterministic Python pipeline is the default for every feature. A local
 # Ollama instance, if reachable, may be used purely as an OPTIONAL enhancement.
 # If Ollama is unavailable, callers must continue with their deterministic path.

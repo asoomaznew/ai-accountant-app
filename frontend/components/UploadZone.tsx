@@ -325,7 +325,7 @@ const UploadZone: React.FC<UploadZoneProps> = ({
      * Future integration point:
      * - Dispatch entries to Zustand processing queue
      * - Submit to Web Worker coordinator
-     * - Start AI pipeline (WebLLM → OCR → Gemini fallback)
+     * - Start AI pipeline (WebLLM → OCR → rules-based fallback)
      */
     onStartProcessing?.(state.entries);
   }, [state.entries, onStartProcessing]);

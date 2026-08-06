@@ -16,21 +16,21 @@ An automated accounting system designed for processing statements, journal entri
 
 The application supports three flexible model providers configured under the **AI Settings** tab:
 
-1. **Google Gemini (Cloud):** 
-   - Fastest, highest quality extraction.
-   - Requires a `GEMINI_API_KEY` configured in your `.env` file (copied from `.env.example`).
-2. **Ollama (Local Server):**
+1. **Ollama (Local Server):**
    - 100% private, offline option.
    - Reads from your local Ollama server running on `http://localhost:11434` (requires models like `qwen2.5:7b` or `mistral` downloaded).
-3. **WebLLM (Local Browser WebGPU):**
+2. **WebLLM (Local Browser WebGPU):**
    - Runs model weights directly inside your browser using WebGPU acceleration.
    - Downloaded weights are cached in your browser storage. Works fully offline after the initial load.
+3. **Python Only (Rules Engine):**
+   - Bypasses all AI models entirely.
+   - Fast, lightweight document parsing using local Python rules and regex matching.
 
 ---
 
 ## 🔒 Privacy & Offline Execution
 - **Ollama / WebLLM:** All statement text, transactions, and invoice files are processed strictly on your local machine and never leave your browser/computer.
-- **Gemini:** Files are securely processed via API calls to Google's Gemini servers using your private API key.
+- **Python Only:** All processing happens locally using rule-based parsing—no external AI services involved.
 
 ---
 
@@ -41,11 +41,7 @@ The application supports three flexible model providers configured under the **A
    ```bash
    npm install
    ```
-3. Copy `.env.example` to `.env` and configure your API key if using Gemini:
-   ```bash
-   cp .env.example .env
-   ```
-4. Start the local server in development mode:
+3. Start the local server in development mode:
    ```bash
    npm run dev
    ```

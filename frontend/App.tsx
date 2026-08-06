@@ -3,7 +3,6 @@ import DashboardLayout, { type NavItemId } from "./components/DashboardLayout";
 
 import { useAppStore } from "./store/useAppStore";
 import { ChevronLeft } from "lucide-react";
-import { AlertTriangleIcon } from "./components/icons";
 import { AppMode } from "./types";
 
 // Automation screens pull in heavyweight PDF, spreadsheet, and local-LLM
@@ -25,41 +24,9 @@ const RenamerComponent = lazy(() => import("./components/RenamerComponent"));
 const BahrainCustPaymentAutomation = lazy(() => import("./components/BahrainCustPaymentAutomation"));
 const OSDashboard = lazy(() => import("./components/OSDashboard"));
 
-const ApiKeyWarningBanner: React.FC<{ onInfoClick: () => void }> = ({
-  onInfoClick,
-}) => (
-  <div
-    className="bg-red-900/50 border-l-4 border-red-500 text-red-200 p-4 mb-8 rounded-r-lg animate-fade-in"
-    role="alert"
-  >
-    <div className="flex items-center">
-      <AlertTriangleIcon className="h-8 w-8 text-red-400 mr-4 flex-shrink-0" />
-      <div className="flex-grow">
-        <p className="font-bold">Action Required: API Key Not Found</p>
-        <p className="text-sm">
-          AI features are disabled because the Google Gemini API key is not
-          configured. Please set the{" "}
-          <code className="bg-red-800/50 text-red-200 px-1.5 py-0.5 rounded">
-            GEMINI_API_KEY
-          </code>{" "}
-          environment variable in your hosting environment.
-        </p>
-      </div>
-      <button
-        onClick={onInfoClick}
-        className="ml-4 flex-shrink-0 text-sm font-semibold underline hover:text-white whitespace-nowrap"
-      >
-        How to fix this
-      </button>
-    </div>
-  </div>
-);
-
 export default function App() {
   const mode = useAppStore((state) => state.appMode);
   const setMode = useAppStore((state) => state.setAppMode);
-
-  const isApiKeyMissing = false; // Gemini/Vertex removed; no gemini key to check
 
   const handleNavChange = (navId: NavItemId) => {
     switch (navId) {
@@ -110,13 +77,6 @@ export default function App() {
 
   return (
     <DashboardLayout activeNav={activeNav} onNavChange={handleNavChange}>
-      {/* API Key Warning */}
-      {isApiKeyMissing && (
-        <div className="mb-6">
-          <ApiKeyWarningBanner onInfoClick={() => setMode("ai_settings")} />
-        </div>
-      )}
-
       {/* Back button for sub-tools */}
       {mode !== "home" && (
         <button

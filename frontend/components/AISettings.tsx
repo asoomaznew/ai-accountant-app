@@ -1,13 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // components/AISettings.tsx
-// Choose AI provider: Gemini Cloud | Ollama (local server) | WebLLM (local browser GPU)
+// Choose AI provider: Ollama (local server) | WebLLM (local browser GPU) | Python Only (rules engine)
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React, { useState, useEffect, useCallback, memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Sparkles, Cpu, CheckCircle2, AlertCircle, Loader2,
-  RefreshCw, ChevronDown, Server, Shield, Zap, Cloud,
+  Cpu, CheckCircle2, AlertCircle, Loader2,
+  RefreshCw, ChevronDown, Server, Shield, Zap,
   HardDrive,
 } from 'lucide-react';
 import {

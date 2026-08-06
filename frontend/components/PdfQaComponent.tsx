@@ -35,7 +35,7 @@ export const QaResultCard: React.FC<QaResultCardProps> = ({ result, onPrint }) =
           <p className="text-slate-200 mt-1">"{result.question}"</p>
         </div>
         <div>
-          <p className="text-sm font-medium text-slate-400">Gemini's Answer:</p>
+          <p className="text-sm font-medium text-slate-400">AI's Answer:</p>
           <p className="text-slate-200 mt-1 whitespace-pre-wrap">
             {result.answer}
           </p>
@@ -98,7 +98,7 @@ const PdfQaComponent: React.FC = () => {
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       setStatusText(
-        `Asking Gemini about file ${i + 1} of ${files.length}: ${file.name}... This may take a moment.`,
+        `Analyzing file ${i + 1} of ${files.length}: ${file.name}... This may take a moment.`,
       );
 
       try {
@@ -253,7 +253,7 @@ const PdfQaComponent: React.FC = () => {
               className="w-full flex items-center justify-center px-4 py-3 border border-transparent text-base font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-dark-200 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-white bg-sky-600 hover:bg-sky-700 focus:ring-sky-500"
             >
               <SparklesIcon className="-ml-1 mr-2 h-5 w-5" />
-              {isSearching ? "Thinking..." : "Ask Gemini"}
+              {isSearching ? "Thinking..." : "Ask AI"}
             </button>
             <button
               onClick={clearAll}
@@ -275,7 +275,7 @@ const PdfQaComponent: React.FC = () => {
           <div className="flex-grow overflow-y-auto p-4 space-y-4">
             {isSearching && results.length === 0 && (
               <div className="text-center py-10 text-slate-400">
-                Gemini is analyzing the documents...
+                AI is analyzing the documents...
               </div>
             )}
             {!isSearching && results.length === 0 && (
@@ -284,7 +284,7 @@ const PdfQaComponent: React.FC = () => {
                 <h3 className="text-xl font-semibold text-slate-400">
                   Ready for your questions
                 </h3>
-                <p>Answers from Gemini will appear here.</p>
+                <p>AI-generated answers will appear here.</p>
               </div>
             )}
             {results.map((res) => (
