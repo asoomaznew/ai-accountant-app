@@ -2,6 +2,12 @@
   command = "npm ci && npm run build"
   publish = "dist"
 
+[build.environment]
+  # Point the deployed frontend at the live Python backend (Render).
+  # Without this, the frontend falls back to http://localhost:8000 (the visitor's
+  # own machine) and every file fails with "Load failed".
+  VITE_BACKEND_URL = "https://ai-accountant-backend-48gz.onrender.com"
+
 # Single-page app redirect
 [[redirects]]
   from = "/*"
