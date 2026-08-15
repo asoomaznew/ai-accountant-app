@@ -1,9 +1,10 @@
-import React, { lazy, Suspense } from "react";
+import React, { lazy, Suspense, useEffect } from "react";
 import DashboardLayout, { type NavItemId } from "./components/DashboardLayout";
 
 import { useAppStore } from "./store/useAppStore";
 import { ChevronLeft } from "lucide-react";
 import { AppMode } from "./types";
+import { pingBackend } from "./services/backendService";
 
 // Automation screens pull in heavyweight PDF, spreadsheet, and local-LLM
 // libraries. Load each screen only when the user navigates to it so the
@@ -27,6 +28,12 @@ const OSDashboard = lazy(() => import("./components/OSDashboard"));
 export default function App() {
   const mode = useAppStore((state) => state.appMode);
   const setMode = useAppStore((state) => state.setAppMode);
+
+  // Background Pre-warm: Wake up the backend (e.g. Render server cold-start)
+  // as soon as the user opens the app, so it is hot when processing files.
+  useEffect(() => {
+    pingBackend();
+  }, []);
 
   const handleNavChange = (navId: NavItemId) => {
     switch (navId) {

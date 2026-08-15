@@ -34,6 +34,7 @@ export default defineConfig(({ mode }) => {
       },
       build: {
         target: 'esnext',
+        chunkSizeWarningLimit: 1200,
         rollupOptions: {
           output: {
             // Keep the app shell lean. These libraries are shared by several
@@ -47,6 +48,15 @@ export default defineConfig(({ mode }) => {
               }
               if (id.includes('node_modules/lucide-react/')) {
                 return 'icons-vendor';
+              }
+              if (id.includes('node_modules/exceljs/')) {
+                return 'exceljs-vendor';
+              }
+              if (id.includes('node_modules/pdfjs-dist/')) {
+                return 'pdfjs-vendor';
+              }
+              if (id.includes('node_modules/jszip/')) {
+                return 'jszip-vendor';
               }
             },
           },

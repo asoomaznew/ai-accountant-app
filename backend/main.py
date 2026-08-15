@@ -132,18 +132,18 @@ async def guard_upload_size(files: List[UploadFile] = File(...)) -> List[UploadF
             )
     return files
 
+import asyncio
+from starlette.middleware.gzip import GZipMiddleware
 from agents.pipeline_orchestrator import SupervisorAgent
 
 
 app = FastAPI(title="AI Accountant v2 Backend", version="2.0.0")
 
-# Allow CORS only for the configured frontend origin(s). Never use a wildcard
-# together with allow_credentials=True — that is an invalid (and unsafe) combo.
-# CORS: allow explicit origins from CORS_ORIGINS (comma-separated) AND any
-# Vercel preview/production domain (*.vercel.app) so a new Vercel project
-# from this repo works without editing code. allow_credentials stays True,
-# so we use a regex (not a "*" wildcard) which is the valid/safe combo.
-CORS_REGEX = r"https://([a-z0-9-]+\.)*vercel\.app$"
+# Compression: compress all responses larger than 1KB
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+# Allow CORS only for the configured frontend origin(s).
+CORS_REGEX = r"https://([a-z0-9-]+\.)*(vercel\.app|netlify\.app)$"
 app.add_middleware(
     CORSMiddleware,
     allow_origins=CORS_ORIGINS,
@@ -165,79 +165,66 @@ async def health_check():
         },
     }
 
-@app.post("/api/process-statements")
-async def process_statements(files: List[UploadFile] = File(...), user_email: str = Depends(verify_google_token), _size=Depends(guard_upload_size)):
-    """
-    Process bank statement files:
-    1. Parse PDF/CSV with pdfplumber+pandas (instant)
-    2. Categorize transactions: rules first, then AI for ambiguous ones
-    3. Generate IFRS journal entries (KD)
-    """
-    results = {}
-    for file in files:
+async def _process_single_statement_file(file: UploadFile, sem: asyncio.Semaphore) -> tuple[str, Any]:
+    async with sem:
         filename = file.filename or "unknown"
         if not (filename.endswith(".pdf") or filename.endswith(".csv") or filename.endswith(".xlsx")):
-            results[filename] = {"error": f"Unsupported file type: {filename}"}
-            continue
+            return filename, {"error": f"Unsupported file type: {filename}"}
+        temp_path = None
         try:
             start_time = time.time()
-            # Save uploaded file temporarily
             suffix = os.path.splitext(filename)[1]
-            temp_path = None
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
                 import shutil
                 shutil.copyfileobj(file.file, temp_file)
                 temp_path = temp_file.name
-            # ── Process via Multi-Agent Pipeline ──────────────────────
             orchestrator = SupervisorAgent()
             journal_entries = await orchestrator.process_file_to_entries(temp_path, filename, job_type="bank")
             total_time = time.time() - start_time
-            logger.info(
-                f"✅ {filename} done in {total_time:.3f}s total via SupervisorAgent"
-            )
-            results[filename] = journal_entries
+            logger.info(f"✅ {filename} done in {total_time:.3f}s total via SupervisorAgent")
+            return filename, journal_entries
         except Exception as e:
             logger.error(f"❌ Error processing {filename}: {e}")
-            results[filename] = {"error": str(e)}
+            return filename, {"error": str(e)}
         finally:
             if temp_path and os.path.exists(temp_path):
                 try:
                     os.unlink(temp_path)
                 except OSError:
                     pass
-    return results
 
-@app.post("/api/process-merchant")
-async def process_merchant(files: List[UploadFile] = File(...), user_email: str = Depends(verify_google_token), _size=Depends(guard_upload_size)):
+@app.post("/api/process-statements")
+async def process_statements(files: List[UploadFile] = File(...), user_email: str = Depends(verify_google_token), _size=Depends(guard_upload_size)):
     """
-    Process Merchant/POS invoices exclusively using Python rules engine.
+    Process bank statement files concurrently:
+    1. Parse PDF/CSV with pdfplumber+pandas (instant)
+    2. Categorize transactions: rules first, then AI for ambiguous ones
+    3. Generate IFRS journal entries (KD)
     """
-    results = {}
-    for file in files:
+    sem = asyncio.Semaphore(4)
+    processed = await asyncio.gather(*[_process_single_statement_file(f, sem) for f in files])
+    return dict(processed)
+
+async def _process_single_merchant_file(file: UploadFile, sem: asyncio.Semaphore) -> tuple[str, Any]:
+    async with sem:
         filename = file.filename or "unknown"
         if not (filename.endswith(".pdf") or filename.endswith(".csv") or filename.endswith(".xlsx")):
-            results[filename] = {"error": f"Unsupported file type: {filename}"}
-            continue
+            return filename, {"error": f"Unsupported file type: {filename}"}
+        temp_path = None
         try:
             start_time = time.time()
             suffix = os.path.splitext(filename)[1]
-            temp_path = None
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
                 import shutil
                 shutil.copyfileobj(file.file, temp_file)
                 temp_path = temp_file.name
-            # ── Process via Multi-Agent Pipeline ──────────────────────
             orchestrator = SupervisorAgent()
             journal_entries = await orchestrator.process_file_to_entries(temp_path, filename, job_type="merchant")
-            # If merchant parsing yields nothing (e.g. the file is actually a
-            # bank/current-account statement), transparently retry as a bank
-            # statement so the tool always returns entries instead of blank.
             if not journal_entries:
                 logger.info(f"⚠️ Merchant {filename} empty — retrying as bank statement")
                 journal_entries = await orchestrator.process_file_to_entries(temp_path, filename, job_type="bank")
             total_time = time.time() - start_time
             logger.info(f"✅ Merchant {filename} done in {total_time:.3f}s via SupervisorAgent")
-            # Strip any empty/malformed entries before returning to frontend
             if isinstance(journal_entries, list):
                 journal_entries = [
                     e for e in journal_entries
@@ -246,17 +233,25 @@ async def process_merchant(files: List[UploadFile] = File(...), user_email: str 
                          or e.get("debitAmount") or e.get("creditAmount")
                          or e.get("debit") or e.get("credit"))
                 ]
-            results[filename] = journal_entries
+            return filename, journal_entries
         except Exception as e:
             logger.error(f"❌ Error processing merchant {filename}: {e}")
-            results[filename] = {"error": str(e)}
+            return filename, {"error": str(e)}
         finally:
             if temp_path and os.path.exists(temp_path):
                 try:
                     os.unlink(temp_path)
                 except OSError:
                     pass
-    return results
+
+@app.post("/api/process-merchant")
+async def process_merchant(files: List[UploadFile] = File(...), user_email: str = Depends(verify_google_token), _size=Depends(guard_upload_size)):
+    """
+    Process Merchant/POS invoices concurrently using Python rules engine.
+    """
+    sem = asyncio.Semaphore(4)
+    processed = await asyncio.gather(*[_process_single_merchant_file(f, sem) for f in files])
+    return dict(processed)
 
 @app.post("/api/extract-pos-data")
 async def extract_pos_data(files: List[UploadFile] = File(...), user_email: str = Depends(verify_google_token), _size=Depends(guard_upload_size)):

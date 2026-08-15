@@ -157,7 +157,7 @@ const MerchantEntryAutomation: React.FC = () => {
         setJournalEntriesByFile({});
         setSearchTerm('');
 
-        const queue = new PQueue({ concurrency: 1 });
+        const queue = new PQueue({ concurrency: 3 });
 
         const resultsMap: { [fileName: string]: JournalEntry[] } = {};
         const offsetAccounts = useAppStore.getState().vendorOffsetAccounts;
