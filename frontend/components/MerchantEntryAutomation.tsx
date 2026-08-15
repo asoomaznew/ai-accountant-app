@@ -476,7 +476,14 @@ const MerchantEntryAutomation: React.FC = () => {
                             </div>
                         )}
 
-                         {(!isLoading && !hasJournalEntries && !hasErrors) && (
+                        {(!isLoading && !hasJournalEntries && !hasErrors && selectedFiles.length > 0 && Object.values(fileStatuses).some(s => s === 'done')) && (
+                            <div className="text-center text-amber-400/90 flex-grow flex flex-col items-center justify-center p-6 border border-dashed border-amber-500/30 rounded-lg bg-amber-500/5 animate-fade-in">
+                                <p className="font-semibold text-base mb-1">لم يتم إنشاء قيود من الملفات المحددة</p>
+                                <p className="text-xs text-slate-400 max-w-sm">تمت معالجة الملفات بنجاح ولكن لم يتم استخراج أي حركات تطابق قواعد القيود الحالية، أو أن نوع الملف يخص تبويب آخر (مثل Warba Entry أو POS Entry).</p>
+                            </div>
+                        )}
+
+                        {(!isLoading && !hasJournalEntries && !hasErrors && (!selectedFiles.length || !Object.values(fileStatuses).some(s => s === 'done'))) && (
                             <div className="text-center text-slate-500 flex-grow flex items-center justify-center">
                                 <p>Upload files and click 'Process' to begin.</p>
                             </div>

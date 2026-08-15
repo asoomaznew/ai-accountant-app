@@ -12,6 +12,8 @@ echo "╚═══════════════════════�
 echo ""
 
 # التحقق من المسار
+export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BACKEND_DIR="${SCRIPT_DIR}/backend"
 
@@ -31,8 +33,16 @@ echo ""
 # 2. إنشاء venv جديد
 echo "🆕 إنشاء venv جديد..."
 cd "${BACKEND_DIR}"
-python3 -m venv venv
-echo "✅ تم إنشاء venv جديد"
+PY_BIN="python3"
+if command -v /opt/homebrew/bin/python3.12 >/dev/null 2>&1; then
+    PY_BIN="/opt/homebrew/bin/python3.12"
+elif command -v python3.12 >/dev/null 2>&1; then
+    PY_BIN="python3.12"
+elif command -v python3.11 >/dev/null 2>&1; then
+    PY_BIN="python3.11"
+fi
+"$PY_BIN" -m venv venv
+echo "✅ تم إنشاء venv جديد باستخدام ($PY_BIN)"
 echo ""
 
 # 3. تثبيت pip (إن لزم الأمر)

@@ -53,3 +53,6 @@ export_code.py
 *.log
 .vercel
 .env*
+
+# Local Netlify folder
+.netlify

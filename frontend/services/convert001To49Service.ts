@@ -1,5 +1,6 @@
 import { CLOVER_BANK_INFO, VENDOR_OFFSET_ACCOUNTS, WARBA_BANK_INFO, WARBA_VENDOR_OFFSET_ACCOUNTS } from '../constants';
 import { RawAccountingRow } from '../types';
+import { extractCellValue } from './excelService';
 
 export const BANK_ACCOUNT_MAPPING: Record<string, string> = {
     "AL ASEEL INTERNATIONAL POLYCLINIC": "WTAA-61012",
@@ -24,56 +25,94 @@ export const CONVERT_OUTPUT_HEADERS = [
     "Number of Voucher", "Activities", "Country", "Departments", "Project_ID", "Property_ID"
 ];
 
+const KEY_ALIASES: Record<string, string[]> = {
+    'Offset Account': ['offset account', 'offsetaccount', 'offset account no', 'offset account number', 'offset_account', 'offset'],
+    'Account No': ['account no', 'accountno', 'account number', 'account_no', 'account', 'acc no', 'acc_no'],
+    'Debit Amount': ['debit amount', 'debit', 'debit (kwd)', 'debit amount (kwd)', 'debit amt', 'debit_amount'],
+    'Credit Amount': ['credit amount', 'credit', 'credit (kwd)', 'credit amount (kwd)', 'credit amt', 'credit_amount'],
+    'Posting Date': ['posting date', 'posting_date', 'date', 'trans date', 'transaction date'],
+    'Description': ['description', 'desc', 'narration', 'particulars', 'details'],
+    'Invoice No': ['invoice no', 'invoice_no', 'document no', 'document_no', 'inv no', 'invoice'],
+    'Currency Code': ['currency code', 'currency_code', 'currency', 'curr'],
+    'Exchange Rate': ['exchange rate', 'exchange_rate', 'ex rate', 'rate'],
+};
+
+export function getVal(row: RawAccountingRow, key: string): any {
+    if (!row) return undefined;
+    
+    // Direct match
+    if (row[key] !== undefined) return extractCellValue(row[key]);
+    
+    const aliases = KEY_ALIASES[key] || [key.toLowerCase()];
+    const rowKeys = Object.keys(row);
+    
+    for (const rKey of rowKeys) {
+        const rKeyNorm = rKey.trim().toLowerCase().replace(/[\s_\-]+/g, '');
+        if (aliases.some(alias => alias.replace(/[\s_\-]+/g, '') === rKeyNorm)) {
+            return extractCellValue(row[rKey]);
+        }
+    }
+    
+    return undefined;
+}
+
 /**
  * Standardizes date formatting from Excel cell values (supporting Date objects, numeric serials, or strings)
  */
 export function formatDate(val: any): string {
     if (!val) return '';
-    if (val instanceof Date) {
-        const day = String(val.getDate()).padStart(2, '0');
-        const month = String(val.getMonth() + 1).padStart(2, '0');
-        const year = val.getFullYear();
+    const cleanVal = extractCellValue(val);
+    if (!cleanVal) return '';
+    if (cleanVal instanceof Date) {
+        const day = String(cleanVal.getDate()).padStart(2, '0');
+        const month = String(cleanVal.getMonth() + 1).padStart(2, '0');
+        const year = cleanVal.getFullYear();
         return `${day}-${month}-${year}`;
     }
-    if (typeof val === 'number') {
+    if (typeof cleanVal === 'number') {
         try {
             // Convert Excel serial date to JS Date (1900 date system)
-            const date = new Date(Math.round((val - 25569) * 86400 * 1000));
+            const date = new Date(Math.round((cleanVal - 25569) * 86400 * 1000));
             const day = String(date.getUTCDate()).padStart(2, '0');
             const month = String(date.getUTCMonth() + 1).padStart(2, '0');
             const year = date.getUTCFullYear();
             return `${day}-${month}-${year}`;
         } catch (e) {
-            return val.toString();
+            return cleanVal.toString();
         }
     }
-    return val.toString();
+    return cleanVal.toString();
 }
 
 /**
  * Converts Clover journal entries from ledger 001 and maps them to customer account 49-000001
  */
 export function convert001To49Rows(rows: RawAccountingRow[]): any[] {
-    const getVal = (row: RawAccountingRow, key: string): any => {
-        if (!row) return undefined;
-        if (row[key] !== undefined) return row[key];
-        const lowerKey = key.toLowerCase();
-        const foundKey = Object.keys(row).find(k => k.toLowerCase() === lowerKey);
-        return foundKey ? row[foundKey] : undefined;
-    };
-    
     const convertedEntries: any[] = [];
     let journalNumberCounter = 0;
     let lastAccountNo = '';
     let lineNumCounter = 0;
 
-    for (const row of rows) {
-        // Check for Offset Account starting with 50- (any Clover 50 account)
-        const offsetAccountInfo = getVal(row, 'Offset Account') ?? getVal(row, 'Offset account');
-        const offsetAccount = offsetAccountInfo?.toString().trim();
-        if (!offsetAccount || !offsetAccount.startsWith('50-')) continue;
+    // Check if any row has an explicit offset account column
+    const hasOffsetColumn = rows.some(row => 
+        Object.keys(row).some(k => k.trim().toLowerCase().includes('offset'))
+    );
 
-        const accountNo = getVal(row, 'Account No')?.toString().trim() || '';
+    for (const row of rows) {
+        const offsetAccountInfo = getVal(row, 'Offset Account');
+        const offsetAccount = (offsetAccountInfo !== undefined && offsetAccountInfo !== null)
+            ? offsetAccountInfo.toString().trim()
+            : '';
+
+        if (hasOffsetColumn) {
+            // Filter by Clover 50 account (e.g. starting with 50- or 50)
+            if (!offsetAccount || (!offsetAccount.startsWith('50-') && !offsetAccount.startsWith('50'))) {
+                continue;
+            }
+        }
+
+        const rawAccountNo = getVal(row, 'Account No');
+        const accountNo = (rawAccountNo !== undefined && rawAccountNo !== null) ? rawAccountNo.toString().trim() : '';
 
         // Group by original Account No
         if (accountNo !== lastAccountNo) {
@@ -141,7 +180,6 @@ export function convert001To49Rows(rows: RawAccountingRow[]): any[] {
             "Line Num": lineNumCounter,
             "Posting Date": formatDate(getVal(row, 'Posting Date')),
             "Account Type - Ledger - 0/ Customer - 1 /Vendor - 2/ Fixed assets - 5/ Bank - 6": 1, // 1 for Customer
-            // NOTE: Default Account No representing the customer '49-000001' as required for this automated mapping
             "Account No": '49-000001',
             "Description": (() => {
                 const desc = (getVal(row, 'Description') || '').toString();
@@ -152,11 +190,9 @@ export function convert001To49Rows(rows: RawAccountingRow[]): any[] {
             "Currency Code": getVal(row, 'Currency Code') || 'KWD',
             "Exchange Rate": getVal(row, 'Exchange Rate') || 100,
             "Offset account Type - Ledger - 0/ Customer - 1 /Vendor - 2/ Fixed assets - 5/ Bank - 6": '', // Empty to match output
-            // NOTE: Default Offset account representation set to 0 as required for output matching
             "Offset account": 0, 
-            // NOTE: Default template Invoice No '2101432' as fallback placeholder
             "Invoice No": '2101432',
-            "Document No": getVal(row, 'Invoice No') || getVal(row, 'Invoice no') || '',
+            "Document No": getVal(row, 'Invoice No') || getVal(row, 'Invoice no') || getVal(row, 'Document No') || '',
             "Document Date": '', // Empty to match output
             "Due Date": formatDate(getVal(row, 'Posting Date')) || formatDate(getVal(row, 'Due Date')),
             "Asset trans type - Acq - 1 / Depre - 3": getVal(row, 'Asset trans type') || '',
@@ -176,3 +212,4 @@ export function convert001To49Rows(rows: RawAccountingRow[]): any[] {
     
     return convertedEntries;
 }
+

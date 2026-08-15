@@ -38,7 +38,44 @@ export const processStatementsWithBackend = async (files: File[]): Promise<Recor
 };
 
 export async function getEndingBalanceFromText(text: string): Promise<any> {
-    throw new Error("Ending Balance Extraction requires LLM providers. Please switch to WebLLM or wait for a future backend update.");
+    let corporateName = "Unknown";
+    let accountNumber = "Unknown";
+    let endBalance = "0.000";
+
+    const nameMatch = text.match(/(?:Corporate|Customer|Account)?\s*Name\s*[:\-]?\s*([A-Za-z0-9_\- ]+?)(?=\n|\||\t|Account|Date|Currency|Branch)/i) ||
+                      text.match(/Name\s*[:]?\s*([A-Za-z0-9_\- ]{3,50})/i);
+    if (nameMatch) corporateName = nameMatch[1].trim();
+
+    const accMatch = text.match(/Account\s*(?:Number|No\.?|#)\s*[:\-]?\s*([A-Z0-9\-]{5,30})/i) ||
+                     text.match(/IBAN\s*[:\-]?\s*([A-Z0-9]{15,30})/i);
+    if (accMatch) accountNumber = accMatch[1].trim();
+
+    // The user's expected "End Balance" in their workflow is actually the "Beginning Balance" of the current statement
+    // (which is the ending balance of the previous reconciliation period).
+    // KIB statements often format this as: "Begining Balance End Balance 2,515.581 6,635.193"
+    const beginBalanceMatch = text.match(/Beginn?ing\s+Balance[^0-9]*([\d,]+\.\d+)/i) || 
+                              text.match(/Opening\s+Balance[^0-9]*([\d,]+\.\d+)/i);
+
+    if (beginBalanceMatch) {
+        endBalance = beginBalanceMatch[1].trim();
+    } else {
+        const closingBalanceMatch = text.match(/(?:Closing|Ending|Book|Available|Total|Current)\s*Balance\s*[:\-]?\s*(?:KWD|KD)?\s*([\d,]+\.\d+)/i) ||
+                                    text.match(/Balance\s*[:\-]?\s*(?:KWD|KD)?\s*([\d,]+\.\d+)/i);
+        if (closingBalanceMatch) {
+            endBalance = closingBalanceMatch[1].trim();
+        } else {
+            const allAmounts = text.match(/[\d,]+\.\d{3}/g);
+            if (allAmounts && allAmounts.length > 0) {
+                endBalance = allAmounts[allAmounts.length - 1];
+            }
+        }
+    }
+
+    if (corporateName !== "Unknown" || accountNumber !== "Unknown" || endBalance !== "0.000") {
+        return { corporateName, accountNumber, endBalance };
+    }
+    
+    throw new Error("Could not deterministically extract Ending Balance from the provided text.");
 };
 
 export async function getAnswerFromText(context: any, question: string): Promise<{answer: string, pages: number[]}> {

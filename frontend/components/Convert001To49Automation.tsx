@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useMemo } from 'react';
 import { ProcessIcon, DownloadIcon, XIcon, CheckCircleIcon, XCircleIcon, ClockIcon, SpinnerIcon } from './icons';
-import { extractTextFromExcel } from '../services/excelService';
+import { extractTextFromExcel, extractCellValue } from '../services/excelService';
 import ExcelJS from "exceljs";
 import Papa from 'papaparse';
 import { downloadBlob } from '../utils/downloadHelper';
@@ -83,23 +83,53 @@ const Convert001To49Automation: React.FC = () => {
                 await workbook.xlsx.load(arrayBuffer);
                 const worksheet = workbook.worksheets[0];
                 
-                const rows: any[] = [];
-                let headers: any[] = [];
-                
-                worksheet.eachRow((row, rowNumber) => {
+                if (!worksheet) {
+                    throw new Error("No worksheet found in Excel file.");
+                }
+
+                const rawRows: any[][] = [];
+                worksheet.eachRow({ includeEmpty: false }, (row) => {
                     const rowValues = row.values as any[];
-                    if (rowNumber === 1) {
-                        headers = rowValues;
-                    } else {
-                        const rowObj: any = {};
-                        headers.forEach((header, index) => {
-                            if (index > 0 && header) {
-                                rowObj[header] = rowValues[index];
+                    const extracted = (Array.isArray(rowValues) ? rowValues.slice(1) : []).map(val => extractCellValue(val));
+                    rawRows.push(extracted);
+                });
+
+                if (rawRows.length === 0) {
+                    return [];
+                }
+
+                // Header detection by looking for common accounting column keywords
+                let headerRowIndex = 0;
+                const headerKeywords = ['offset account', 'account no', 'posting date', 'debit amount', 'credit amount', 'description', 'journal number', 'account'];
+                for (let i = 0; i < Math.min(rawRows.length, 10); i++) {
+                    const rowStr = rawRows[i].map(c => String(c || '').toLowerCase()).join(' ');
+                    if (headerKeywords.some(kw => rowStr.includes(kw))) {
+                        headerRowIndex = i;
+                        break;
+                    }
+                }
+
+                const headers = rawRows[headerRowIndex].map(c => String(c || '').trim());
+                const dataRows = rawRows.slice(headerRowIndex + 1);
+
+                const rows: any[] = [];
+                dataRows.forEach(rowValues => {
+                    const rowObj: any = {};
+                    let hasData = false;
+                    headers.forEach((header, index) => {
+                        if (header && index < rowValues.length) {
+                            const val = rowValues[index];
+                            if (val !== undefined && val !== null && val !== '') {
+                                hasData = true;
                             }
-                        });
+                            rowObj[header] = val;
+                        }
+                    });
+                    if (hasData) {
                         rows.push(rowObj);
                     }
                 });
+
                 const convertedEntries = convert001To49Rows(rows);
                 return convertedEntries;
             }
@@ -121,8 +151,16 @@ const Convert001To49Automation: React.FC = () => {
             setFileStatuses(prev => ({ ...prev, [file.name]: 'processing' }));
             try {
                 const entries = await processExcelFile(file);
-                setJournalEntriesByFile(prev => ({ ...prev, [file.name]: entries }));
-                setFileStatuses(prev => ({ ...prev, [file.name]: 'done' }));
+                if (entries.length === 0) {
+                    setErrors(prev => ({ 
+                        ...prev, 
+                        [file.name]: "No matching rows found in file. Please ensure the Excel file contains accounting data with Offset Account starting with 50-." 
+                    }));
+                    setFileStatuses(prev => ({ ...prev, [file.name]: 'error' }));
+                } else {
+                    setJournalEntriesByFile(prev => ({ ...prev, [file.name]: entries }));
+                    setFileStatuses(prev => ({ ...prev, [file.name]: 'done' }));
+                }
             } catch (err: any) {
                 setErrors(prev => ({ ...prev, [file.name]: err.message || "Error processing file." }));
                 setFileStatuses(prev => ({ ...prev, [file.name]: 'error' }));
